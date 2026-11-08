@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Synthetic SMT event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "eventId", "runId", "source", "machineId", "eventType", "sequence", "simTimeMs", "emittedAt", "payload"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "eventId": {"$ref": "#/$defs/id"},
+    "runId": {"$ref": "#/$defs/id"},
+    "source": {"const": "simulator"},
+    "machineId": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+    "eventType": {"enum": ["machine.state.changed", "machine.alarm.raised", "machine.alarm.cleared", "pcb.entered", "pcb.exited", "pcb.process.completed", "pcb.inspection.completed", "workorder.started", "workorder.completed"]},
+    "sequence": {"type": "integer", "minimum": 1},
+    "simTimeMs": {"type": "integer", "minimum": 0},
+    "emittedAt": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "payload": {"type": "object"}
+  },
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "pattern": "^[^/+#]+$"},
+    "text": {"type": "string", "minLength": 1},
+    "board": {"type": "object", "additionalProperties": false, "required": ["synthetic", "boardId", "workOrderId"], "properties": {"synthetic": {"const": true}, "boardId": {"$ref": "#/$defs/id"}, "workOrderId": {"$ref": "#/$defs/id"}}},
+    "inspection": {"type": "object", "additionalProperties": false, "required": ["synthetic", "boardId", "workOrderId", "passed"], "properties": {"synthetic": {"const": true}, "boardId": {"$ref": "#/$defs/id"}, "workOrderId": {"$ref": "#/$defs/id"}, "passed": {"type": "boolean"}}},
+    "alarm": {"type": "object", "additionalProperties": false, "required": ["synthetic", "alarmId", "reason"], "properties": {"synthetic": {"const": true}, "alarmId": {"$ref": "#/$defs/id"}, "reason": {"$ref": "#/$defs/text"}}},
+    "state": {"type": "object", "additionalProperties": false, "required": ["synthetic", "observedState", "flowState", "reason"], "properties": {"synthetic": {"const": true}, "observedState": {"enum": ["IDLE", "RUNNING", "FAULT"]}, "flowState": {"enum": ["NORMAL", "BLOCKED", "STARVED"]}, "reason": {"$ref": "#/$defs/text"}}},
+    "start": {"type": "object", "additionalProperties": false, "required": ["synthetic", "workOrderId", "quantity"], "properties": {"synthetic": {"const": true}, "workOrderId": {"$ref": "#/$defs/id"}, "quantity": {"type": "integer", "minimum": 1}}},
+    "completion": {"type": "object", "additionalProperties": false, "required": ["synthetic", "workOrderId", "quantity", "passed", "failed"], "properties": {"synthetic": {"const": true}, "workOrderId": {"$ref": "#/$defs/id"}, "quantity": {"type": "integer", "minimum": 1}, "passed": {"type": "integer", "minimum": 0}, "failed": {"type": "integer", "minimum": 0}}}
+  },
+  "allOf": [
+    {"if": {"properties": {"eventType": {"enum": ["pcb.entered", "pcb.exited", "pcb.process.completed"]}}}, "then": {"properties": {"machineId": {"$ref": "#/$defs/id"}, "payload": {"$ref": "#/$defs/board"}}}},
+    {"if": {"properties": {"eventType": {"const": "pcb.inspection.completed"}}}, "then": {"properties": {"machineId": {"enum": ["spi", "aoi"]}, "payload": {"$ref": "#/$defs/inspection"}}}},
+    {"if": {"properties": {"eventType": {"enum": ["machine.alarm.raised", "machine.alarm.cleared"]}}}, "then": {"properties": {"machineId": {"$ref": "#/$defs/id"}, "payload": {"$ref": "#/$defs/alarm"}}}},
+    {"if": {"properties": {"eventType": {"const": "machine.state.changed"}}}, "then": {"properties": {"machineId": {"$ref": "#/$defs/id"}, "payload": {"$ref": "#/$defs/state"}}}},
+    {"if": {"properties": {"eventType": {"const": "workorder.started"}}}, "then": {"properties": {"machineId": {"type": "null"}, "payload": {"$ref": "#/$defs/start"}}}},
+    {"if": {"properties": {"eventType": {"const": "workorder.completed"}}}, "then": {"properties": {"machineId": {"type": "null"}, "payload": {"$ref": "#/$defs/completion"}}}}
+  ]
+}

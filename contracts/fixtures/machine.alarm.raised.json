@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "eventId": "event-00000002",
+  "runId": "demo-run",
+  "source": "simulator",
+  "machineId": "mounter",
+  "eventType": "machine.alarm.raised",
+  "sequence": 2,
+  "simTimeMs": 1000,
+  "emittedAt": "2026-11-08T12:00:00Z",
+  "payload": {
+    "synthetic": true,
+    "alarmId": "alarm-1",
+    "reason": "simulated fault"
+  }
+}

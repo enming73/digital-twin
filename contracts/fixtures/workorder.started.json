@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "eventId": "event-00000008",
+  "runId": "demo-run",
+  "source": "simulator",
+  "machineId": null,
+  "eventType": "workorder.started",
+  "sequence": 8,
+  "simTimeMs": 1000,
+  "emittedAt": "2026-11-08T12:00:00Z",
+  "payload": {
+    "synthetic": true,
+    "workOrderId": "work-order-1",
+    "quantity": 100
+  }
+}

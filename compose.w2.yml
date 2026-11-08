@@ -1,0 +1,20 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.21
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./deploy/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 -W 5 >/dev/null"]
+      interval: 5s
+      timeout: 7s
+      retries: 6
+  simulator:
+    build:
+      context: .
+      dockerfile: simulator/Dockerfile
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    command: ["run", "--scenario", "/scenarios/normal.json", "--speed", "100", "--mqtt-url", "tcp://mosquitto:1883"]
