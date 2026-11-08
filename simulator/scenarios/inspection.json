@@ -1,0 +1,10 @@
+{
+  "quantity": 10,
+  "defectRate": 1,
+  "stations": [
+    {"id":"loader","processTimeMs":3000,"inputCapacity":2},
+    {"id":"spi","processTimeMs":3500,"inputCapacity":2},
+    {"id":"aoi","processTimeMs":4000,"inputCapacity":2},
+    {"id":"unloader","processTimeMs":3000,"inputCapacity":2}
+  ]
+}

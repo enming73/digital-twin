@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "eventId": "event-00000001",
+  "runId": "demo-run",
+  "source": "simulator",
+  "machineId": "mounter",
+  "eventType": "machine.state.changed",
+  "sequence": 1,
+  "simTimeMs": 1000,
+  "emittedAt": "2026-11-08T12:00:00Z",
+  "payload": {
+    "synthetic": true,
+    "observedState": "RUNNING",
+    "flowState": "NORMAL",
+    "reason": "processing"
+  }
+}

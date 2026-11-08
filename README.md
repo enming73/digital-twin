@@ -1,5 +1,22 @@
 # SMT Digital Twin Studio
 
+## W2 independent simulator
+
+The separate Go simulator generates **SIMULATED** data and does not connect to the browser or real equipment. It is awaiting user acceptance. See `docs/W2_REPORT.md` for test results and known gaps, and `docs/EVENT_CONTRACT.md` for the external event contract.
+
+From the project root, run a broker-free example (Go 1.24+):
+
+```sh
+cd simulator
+go run ./cmd/simulator run --scenario scenarios/normal.json --seed 2026 --speed 1000 --dry-run > /tmp/opencode/w2-events.ndjson
+go test -race ./...
+W2_MQTT_INTEGRATION=1 go test -count=1 ./internal/publisher -run Integration -v
+```
+
+`--dry-run` writes NDJSON only to stdout; errors go to stderr. Omit it to publish to `--mqtt-url tcp://127.0.0.1:1883`; use a unique `--run-id` for each separate run. From the project root, `docker compose -f compose.w2.yml up --build` starts a local Mosquitto broker and simulator. The anonymous development broker is exposed only on `127.0.0.1`, and is not production security. SIGUSR1 toggles pause/resume on Linux; SIGINT/SIGTERM stop the process. See the report for limitations of shutdown, integration testing and currently incomplete acceptance evidence.
+
+Available scenarios: `normal.json`, `fault.json` (mounter fault/recovery at 70/145 simulated seconds), `inspection.json` (all inspections fail), and `reconnect.json` (normal production data; disconnect is injected externally). For a manual reconnect exercise, run `docker compose -f compose.w2.yml up --build` in one terminal, then in a second run `docker compose -f compose.w2.yml stop mosquitto` followed by `docker compose -f compose.w2.yml start mosquitto`; the simulator waits/retries. Use `docker compose -f compose.w2.yml down` to remove only that Compose stack. The automated integration test uses its own container and dynamic local port.
+
 An independently modeled, browser-only SMT line concept. **Concept demo · Synthetic data · Not affiliated with ASMPT.** Station geometry is original, generic and conceptual; no proprietary CAD, branding or third-party model downloads are used. There is no equipment connection or live telemetry.
 
 ## Run

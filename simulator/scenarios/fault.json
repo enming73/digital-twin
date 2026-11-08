@@ -1,0 +1,17 @@
+{
+  "quantity": 100,
+  "defectRate": 0.03,
+  "stations": [
+    {"id":"loader","processTimeMs":3000,"inputCapacity":2},
+    {"id":"printer","processTimeMs":5000,"inputCapacity":2},
+    {"id":"spi","processTimeMs":3500,"inputCapacity":2},
+    {"id":"mounter","processTimeMs":6500,"inputCapacity":2},
+    {"id":"reflow","processTimeMs":7000,"inputCapacity":2},
+    {"id":"aoi","processTimeMs":4000,"inputCapacity":2},
+    {"id":"unloader","processTimeMs":3000,"inputCapacity":2}
+  ],
+  "faults": [
+    {"simTimeMs":70000,"machineId":"mounter","action":"raise","reason":"simulated fault"},
+    {"simTimeMs":145000,"machineId":"mounter","action":"clear","reason":"simulated recovery"}
+  ]
+}

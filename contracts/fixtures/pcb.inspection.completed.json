@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "eventId": "event-00000007",
+  "runId": "demo-run",
+  "source": "simulator",
+  "machineId": "spi",
+  "eventType": "pcb.inspection.completed",
+  "sequence": 7,
+  "simTimeMs": 1000,
+  "emittedAt": "2026-11-08T12:00:00Z",
+  "payload": {
+    "synthetic": true,
+    "boardId": "board-1",
+    "workOrderId": "work-order-1",
+    "passed": true
+  }
+}
