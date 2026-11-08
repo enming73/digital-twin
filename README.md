@@ -1,0 +1,79 @@
+# SMT Digital Twin Studio
+
+An independently modeled, browser-only SMT line concept. **Concept demo · Synthetic data · Not affiliated with ASMPT.** Station geometry is original, generic and conceptual; no proprietary CAD, branding or third-party model downloads are used. There is no equipment connection or live telemetry.
+
+## Run
+
+Requires a supported Node.js LTS and npm. From the project root:
+
+```sh
+npm install
+npm run dev
+```
+
+Open the URL printed by Vite. Drag to orbit, scroll to zoom, and click a machine or select a station from the keyboard-accessible list to focus it. **Reset view** restores the overview. Use **Start/Pause**, **Reset**, and the 1×/2×/5× selector in the simulation panel. Time and counts are SIMULATED. WebGL is required for the scene; a fallback message is shown when unavailable.
+
+Selecting a station opens its close-up camera preset; **Refocus close-up** returns to that preset after orbiting. Procedural station mechanisms illustrate the simulated process only: they are not measured equipment positions or real machine motion. Animation updates follow the virtual clock and stop when it is paused.
+
+## Checks
+
+```sh
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npx playwright install chromium # once, if Chromium is not installed
+npm run test:e2e
+```
+
+The E2E smoke test writes `test-results/factory-overview.png`. Screenshot output may vary by GPU/browser; it is a smoke artifact, not a pixel-baseline comparison.
+
+## Scope and limitations
+
+v0.2 adds a deterministic, synthetic 100-board work order and bounded FIFO queues. Configure the seed, quantity, defect probability, station processing times and input capacities in `src/data/scenario.ts`. Inspection outcomes do not remove boards from the line. Stations have one processing slot; after processing, the slot holds a blocked board until the next input buffer has capacity. Reflow uses the same simplified single-slot model. Transfers are instantaneous in the model; the display interpolates within a station but does not animate the transfer between stations. The amber tower lights remain decorative. Event records are kept in memory during a run, and reset clears them.
+
+v0.3 adds simplified loader/unloader lifts, printer squeegee, SPI/AOI scanner indicators, placement gantry/feeders and a reflow conveyor indicator. These are conceptual, not physics-accurate. Cross-station PCB jumps remain a known acceptance gap.
+
+## v0.4 analytics and trace
+
+Scroll the right-hand panel to **Production insights**. Enter an existing board ID (for example `board-1` after starting) to see its recorded event history and current station; selecting a visible PCB in the 3D scene also opens its trace. The selected board is amber and its current station is highlighted. Completed boards remain searchable after they leave the scene. Simulated inspection failures and injected equipment faults appear in the alert list.
+
+The window selector applies to completions, throughput, average cycle time, board pass rate, completion chart and inspection alerts. Both window endpoints are included. WIP and the work-order progress are current values, not windowed. Definitions:
+
+- **Throughput / h** = completed boards in the window × 3,600,000 / elapsed virtual milliseconds in the window. Before any virtual time has elapsed it is unavailable.
+- **WIP** = created boards − completed boards, at the current snapshot.
+- **Average cycle / s** = mean `(completion time − creation time)` for boards completed in the window, in seconds. This includes input queue and blocked time.
+- **Board pass rate** = boards completed in the window that passed all their recorded inspections ÷ completed boards in the window with at least one inspection. Boards with no recorded inspection are excluded; no inspected boards means unavailable. Defective boards are not scrapped in this concept.
+- **Completion chart** groups actual `BOARD_COMPLETED` events into 12 equal virtual-time bins; alerts are simulated failed inspection and fault events, not real equipment alarms.
+
+Values are calculated from the current in-memory simulated run, not live data, certified KPIs, real MES records or production telemetry. There is one mock work order; the event log is cleared by simulation reset.
+
+## v0.5 simulated fault and replay
+
+Use **Inject fault** to fault the mounter at the current virtual time; **Clear fault** recovers it. This is only a simulation, not an equipment command. A processing board stays in the machine, preserving its remaining processing duration and illustrative pose. The mounter input queue can still receive boards up to its capacity. Upstream blocks only after its output cannot transfer; downstream runs until its available boards are exhausted. Clearing the fault resumes the remaining duration; a previously completed but blocked board instead waits for downstream capacity. A faulted empty machine resumes normal queue handling. The simulation clock can be paused independently.
+
+**Open replay** pauses the live simulation and enters a read-only historical view. Drag **Replay time**, select a fault event in the timeline, or use **Play replay** and the speed selector. The scene and dashboard use events at or before the chosen time; the live simulation is unchanged while viewing. **Return to live** returns to the paused live state; press Resume to continue. All events sharing a timestamp are applied in sequence, so timestamp seek represents the state after all events at that time. Logs are in memory only; reset discards them. Export/import is not implemented.
+
+## v1.0 guided presentation
+
+Select **Start guided presentation** in the right panel. The 3½-minute tour at 1× resets the simulated run, starts the work order, moves through overview, printer and mounter camera presets, injects a simulated mounter fault at 70 seconds, clears it at 145 seconds and shows a KPI summary. **Pause**, **Resume**, **Restart** and **Exit** control the tour; manual simulation controls are disabled during it. Exit leaves the simulated run paused so **Open replay** can inspect the recorded incident. Restart discards the current simulated run. Camera cuts are immediate; captions and metrics are illustrative and SIMULATED.
+
+Scripted events are scheduled at exact virtual timestamps, independent of timer update size. The normal speed selector is disabled during the guided tour, which starts at 1×. Pausing and resuming adds pause/resume events to the log, while the fault and recovery times remain fixed.
+
+### Static deployment
+
+Run `npm install`, `npm run build`, and serve the contents of `dist/` at a web server's URL root. For a local production preview run `npx vite preview --host 127.0.0.1`. This build is configured for root deployment; a subpath deployment requires setting Vite's `base` to that subpath and rebuilding. The demo loads only bundled/local assets and requires no external API. WebGL and JavaScript must be enabled. Smoke-test screenshots are written under `test-results/` by Playwright and are not pixel baselines.
+
+The printer and mounter use locally packaged GLBs with procedural fallbacks; other stations remain procedural. The floor and cabinets are simplified, not dimensional representations of real equipment. Performance depends on WebGL hardware; desktop 1366×768 is the target, with a stacked smaller-screen layout. No external services are needed at runtime.
+
+## v0.6 model assets and performance
+
+Original generic source scenes are `assets/blender/printer.blend` and `assets/blender/mounter.blend`; browser assets are `public/models/printer.glb` and `public/models/mounter.glb`. Recreate them with Blender 4.2 LTS from the project root:
+
+```sh
+blender -b --factory-startup --python assets/blender/generate_models.py
+```
+
+The GLBs use PBR materials and expose named groups including `Cabinet`, `Conveyor`, `PCB_Anchor`, `Gantry_X`, `Gantry_Y`, `Placement_Head`, `Feeders` and `Signal_Tower`. The named motion anchors are currently empty placeholders: the existing procedural illustration remains responsible for animation and selection, not GLB-node animation. The per-model size budget is 2 MiB and is checked by `npm test`. If a GLB fails to load, its procedural shell remains visible. Meshes are low-poly, but separate level-of-detail variants are not yet implemented.
+
+To reproduce a **software-rendered diagnostic**, start `npm run dev -- --host 127.0.0.1 --port 4173` and run `node scripts/measure-performance.mjs`. On 2026-11-08, WSL2 Linux 6.18, Intel i7-8700K, headless Chromium 158, SwiftShader, 1366×768, DPR 1, 5-second browser `requestAnimationFrame` cadence was **21.1 fps** (106 intervals / 5.033 s). This is not a GPU frame-time benchmark and is not representative mid-range desktop hardware; no target-hardware performance acceptance is claimed. Cross-station board jumps and earlier verification gaps remain.

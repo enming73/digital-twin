@@ -1,0 +1,14 @@
+import type { Scenario } from '../simulation/engine'
+
+export const defaultScenario: Scenario = {
+  seed: 2026, quantity: 100, defectRate: 0.03,
+  stations: [
+    { id: 'loader', processTimeMs: 3000, inputCapacity: 2 },
+    { id: 'printer', processTimeMs: 5000, inputCapacity: 2 },
+    { id: 'spi', processTimeMs: 3500, inputCapacity: 2 },
+    { id: 'mounter', processTimeMs: 6500, inputCapacity: 2 },
+    { id: 'reflow', processTimeMs: 7000, inputCapacity: 2 },
+    { id: 'aoi', processTimeMs: 4000, inputCapacity: 2 },
+    { id: 'unloader', processTimeMs: 3000, inputCapacity: 2 },
+  ],
+}
