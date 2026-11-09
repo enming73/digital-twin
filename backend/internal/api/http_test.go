@@ -1,7 +1,9 @@
 package api
 
 import (
+	"fmt"
 	"github.com/gorilla/websocket"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"smt-digital-twin/backend/internal/contract"
@@ -25,8 +27,8 @@ func TestHTTPAndTwoWebsocketSubscribers(t *testing.T) {
 	if res.StatusCode != 503 {
 		t.Fatalf("health: %d", res.StatusCode)
 	}
-	consumer.Connected()
-	consumer.Subscribed()
+	generation := consumer.Connected()
+	consumer.Subscribed(generation)
 	res, err = http.Get(server.URL + "/api/health")
 	if err != nil {
 		t.Fatal(err)
@@ -58,5 +60,57 @@ func TestHTTPAndTwoWebsocketSubscribers(t *testing.T) {
 		if err := c.ReadJSON(&message); err != nil || message["type"] != "delta" || message["revision"] != float64(1) {
 			t.Fatalf("delta: %v %v", message, err)
 		}
+	}
+}
+
+func TestSlowWebsocketDisconnectsAndResynchronizes(t *testing.T) {
+	store := twin.NewStore("epoch", map[string][]string{"r": {"a"}})
+	server := httptest.NewServer(NewHandler(store, ingest.NewConsumer(store)))
+	defer server.Close()
+	url := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws/runs/r"
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	var first map[string]any
+	if err := conn.ReadJSON(&first); err != nil {
+		t.Fatal(err)
+	}
+	machine := "a"
+	reason := strings.Repeat("x", 128*1024)
+	for i := 1; i <= 300; i++ {
+		e := contract.Event{RunID: "r", EventID: fmt.Sprintf("%d", i), Sequence: i, EventType: "machine.state.changed", MachineID: &machine, Payload: map[string]any{"observedState": "RUNNING", "flowState": "NORMAL", "reason": reason}}
+		if _, err := store.Apply(e, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Keep the real socket unread past the server's write deadline, then drain it.
+	time.Sleep(6 * time.Second)
+	_ = conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	for {
+		var msg map[string]any
+		err = conn.ReadJSON(&msg)
+		if err != nil || msg["type"] == "resync_required" {
+			break
+		}
+	}
+	if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+		t.Fatal("slow client did not disconnect")
+	}
+	newConn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer newConn.Close()
+	var snapshot struct {
+		Type     string `json:"type"`
+		Revision int    `json:"revision"`
+	}
+	if err := newConn.ReadJSON(&snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Type != "snapshot" || snapshot.Revision != 300 {
+		t.Fatalf("resync: %+v", snapshot)
 	}
 }

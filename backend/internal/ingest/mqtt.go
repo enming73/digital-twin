@@ -18,28 +18,47 @@ type Health struct {
 	LastError  string `json:"lastError,omitempty"`
 }
 type Consumer struct {
-	mu     sync.Mutex
-	store  *twin.Store
-	health Health
+	mu         sync.Mutex
+	store      *twin.Store
+	health     Health
+	generation uint64
 }
 
 func NewConsumer(store *twin.Store) *Consumer { return &Consumer{store: store} }
 func (c *Consumer) Health() Health            { c.mu.Lock(); defer c.mu.Unlock(); return c.health }
-func (c *Consumer) Connected() {
+func (c *Consumer) Connected() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.health.Connected = true
 	c.health.Subscribed = false
+	c.generation++
+	return c.generation
 }
-func (c *Consumer) Subscribed() {
+func (c *Consumer) Subscribed(generation uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if !c.health.Connected || c.generation != generation {
+		return
+	}
 	c.health.Subscribed = true
 	c.health.LastError = ""
 }
 func (c *Consumer) Disconnected(reason string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.health.Connected = false
+	c.generation++
+	c.health.Subscribed = false
+	c.health.LastError = reason
+	c.store.MarkUncertain(reason)
+}
+func (c *Consumer) subscriptionFailed(generation uint64, reason string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.health.Connected || generation != c.generation {
+		return
+	}
+	c.generation++
 	c.health.Connected = false
 	c.health.Subscribed = false
 	c.health.LastError = reason
@@ -55,7 +74,7 @@ func (c *Consumer) Run(ctx context.Context, brokerURL string) error {
 	opts := mqtt.NewClientOptions().AddBroker(brokerURL).SetClientID(fmt.Sprintf("twin-%d", time.Now().UnixNano())).SetAutoReconnect(true).SetConnectRetry(true).SetConnectRetryInterval(250 * time.Millisecond).SetOrderMatters(true)
 	opts.SetConnectionLostHandler(func(_ mqtt.Client, err error) { c.Disconnected("broker disconnected: " + err.Error()) })
 	opts.SetOnConnectHandler(func(client mqtt.Client) {
-		c.Connected()
+		generation := c.Connected()
 		token := client.SubscribeMultiple(map[string]byte{"demo/smt/+/machines/+/events": 1, "demo/smt/+/line/events": 1}, func(_ mqtt.Client, msg mqtt.Message) {
 			event, err := contract.DecodeAndValidate(msg.Topic(), msg.Payload())
 			if err != nil {
@@ -68,10 +87,10 @@ func (c *Consumer) Run(ctx context.Context, brokerURL string) error {
 			}
 		})
 		if !token.WaitTimeout(10*time.Second) || token.Error() != nil {
-			c.Disconnected("MQTT subscribe failed")
+			c.subscriptionFailed(generation, "MQTT subscribe failed")
 			return
 		}
-		c.Subscribed()
+		c.Subscribed(generation)
 	})
 	client := mqtt.NewClient(opts)
 	token := client.Connect()

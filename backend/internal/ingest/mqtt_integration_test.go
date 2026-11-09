@@ -50,6 +50,8 @@ func TestIntegrationW2AndDisconnect(t *testing.T) {
 		deadline := time.Now().Add(20 * time.Second)
 		for !cond() {
 			if time.Now().After(deadline) {
+				logs, _ := exec.Command("docker", "logs", name).CombinedOutput()
+				t.Logf("broker logs: %s", logs)
 				t.Fatalf("timed out: health=%+v", consumer.Health())
 			}
 			time.Sleep(20 * time.Millisecond)

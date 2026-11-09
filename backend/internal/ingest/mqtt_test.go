@@ -13,8 +13,8 @@ func TestDisconnectMakesRunUncertainAndSubsequentEventsDoNotClearIt(t *testing.T
 	if c.Health().Subscribed {
 		t.Fatal("unconnected consumer ready")
 	}
-	c.Connected()
-	c.Subscribed()
+	generation := c.Connected()
+	c.Subscribed(generation)
 	if !c.Health().Subscribed {
 		t.Fatal("subscription not ready")
 	}
@@ -30,5 +30,34 @@ func TestDisconnectMakesRunUncertainAndSubsequentEventsDoNotClearIt(t *testing.T
 	snap, _ = store.Snapshot("r")
 	if snap.Integrity != "uncertain" {
 		t.Fatalf("integrity = %s", snap.Integrity)
+	}
+}
+
+func TestLateSubscriptionAcknowledgementCannotRestoreDisconnectedHealth(t *testing.T) {
+	c := NewConsumer(twin.NewStore("epoch", map[string][]string{"r": {"a"}}))
+	generation := c.Connected()
+	c.Disconnected("connection lost during subscribe")
+	c.Subscribed(generation)
+	if h := c.Health(); h.Connected || h.Subscribed {
+		t.Fatalf("stale acknowledgement made consumer ready: %+v", h)
+	}
+}
+
+func TestOldAcknowledgementCannotCompleteNewConnection(t *testing.T) {
+	c := NewConsumer(twin.NewStore("epoch", map[string][]string{"r": {"a"}}))
+	old := c.Connected()
+	c.Disconnected("lost")
+	current := c.Connected()
+	c.Subscribed(old)
+	if c.Health().Subscribed {
+		t.Fatal("old subscription acknowledged new connection")
+	}
+	c.Subscribed(current)
+	if !c.Health().Subscribed {
+		t.Fatal("current subscription not acknowledged")
+	}
+	c.subscriptionFailed(old, "old timeout")
+	if !c.Health().Subscribed {
+		t.Fatal("old subscription failure disconnected current session")
 	}
 }

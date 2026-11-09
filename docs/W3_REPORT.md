@@ -1,5 +1,13 @@
 # W3 report — experimental implementation, review pending
 
+## Follow-up verification — W3 remains open
+
+- A real WebSocket slow-reader test now exercises a stalled socket, server disconnection and reconnect to a current snapshot. A real MQTT live-crash test kills the backend after ten events, verifies the restarted process exposes an empty `uncertain` state with a new epoch, and restores the complete 100-board run using offline NDJSON. This is not automatic recovery.
+- A reproducible unit test found a stale subscription acknowledgement could set `subscribed=true` after disconnection. Connection generations now reject stale success and failure callbacks; race-enabled package tests passed.
+- Under concurrent heavy Go, Docker and frontend checks, the W2 integration test observed `expected sequence 2886, got 2887`; a separate two-WebSocket integration test also observed a sequence gap. Both froze the run and reported the gap, as designed. Re-running the same integration command separately passed; a further run alongside race tests passed too. The source of the intermittent gap has **not** been established, so a normal-flow acceptance pass under load cannot be claimed. Do not interpret broker PUBACK as subscriber delivery acknowledgement.
+- The slow-reader test initially timed out with an artificially tiny receive buffer; after using the normal OS receive buffer it passed. Broader network environments and timing remain unverified.
+- These follow-up changes have not yet received independent review. W3 is not ready for acceptance until the intermittent missing-event behavior is investigated and the full acceptance checks are rerun.
+
 ## Objective and scope
 
 Add a read-only synthetic Go twin backend in parallel with the unchanged browser demo and W2 publisher. No real equipment, MES, durable database, browser MQTT, or W4 UI integration. All represented telemetry is **SIMULATED**.
