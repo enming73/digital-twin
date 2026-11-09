@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { overviewCamera, stations, type Station } from '../data/stations'
-import type { MachineSnapshot, Snapshot } from '../simulation/engine'
+import type { MachineSnapshot } from '../simulation/engine'
+import type { SceneModel } from '../twin/types'
 import { machineMotion } from './motion'
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
@@ -30,7 +31,7 @@ function ProcessAssembly({ station, machine, time }: { station: Station; machine
   }
 }
 
-function ProceduralShell({ selected, oven }: { selected: boolean; oven: boolean }) {
+function ProceduralShell({ selected, oven, statusColor = '#d6a35a' }: { selected: boolean; oven: boolean; statusColor?: string }) {
   return <>
     <group name="Cabinet">
       <Box position={[0, 0.52, 0]} size={[2.55, 1.04, 1.85]} color={selected ? '#c4d1ca' : '#d8ddda'} />
@@ -42,7 +43,7 @@ function ProceduralShell({ selected, oven }: { selected: boolean; oven: boolean 
       <Box position={[0.9, 1.6, 0.95]} size={[0.25, 0.28, 0.06]} color="#526461" />
     </group>
     <group name="Conveyor"><Box position={[0, 1.01, 0]} size={[3.13, 0.12, 0.72]} color="#596660" metal={0.65} /><Box position={[0, 1.12, 0.43]} size={[3.13, 0.07, 0.07]} color="#9ba9a3" metal={0.8} /><Box position={[0, 1.12, -0.43]} size={[3.13, 0.07, 0.07]} color="#9ba9a3" metal={0.8} /></group>
-    <group name="Signal_Tower"><Box position={[1.01, 1.94, -0.65]} size={[0.07, 0.38, 0.07]} color="#63706b" /><Box position={[1.01, 2.17, -0.65]} size={[0.12, 0.16, 0.12]} color="#d6a35a" /></group>
+    <group name="Signal_Tower"><Box position={[1.01, 1.94, -0.65]} size={[0.07, 0.38, 0.07]} color="#63706b" /><Box position={[1.01, 2.17, -0.65]} size={[0.12, 0.16, 0.12]} color={statusColor} /></group>
   </>
 }
 
@@ -66,7 +67,7 @@ function AssetShell({ kind, selected }: { kind: 'printer' | 'mounter'; selected:
   return <><primitive object={asset} />{selected && <Box position={[0, .03, 0]} size={[2.76, .05, 2.05]} color="#92ae96" />}</>
 }
 
-function Machine({ station, machine, time, selected, onSelect }: { station: Station; machine: MachineSnapshot; time: number; selected: boolean; onSelect: () => void }) {
+function Machine({ station, machine, time, selected, onSelect, status }: { station: Station; machine: MachineSnapshot | null; time: number; selected: boolean; onSelect: () => void; status: string }) {
   const label = useMemo(() => {
     const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 64
     const ctx = canvas.getContext('2d')!
@@ -76,8 +77,9 @@ function Machine({ station, machine, time, selected, onSelect }: { station: Stat
   }, [station.short])
   useEffect(() => () => label.dispose(), [label])
   return <group position={station.position} name={station.id} onClick={e => { e.stopPropagation(); onSelect() }}>
-    {station.id === 'printer' || station.id === 'mounter' ? <AssetShell kind={station.id} selected={selected} /> : <ProceduralShell selected={selected} oven={station.kind === 'oven'} />}
-    <ProcessAssembly station={station} machine={machine} time={time} />
+    {station.id === 'printer' || station.id === 'mounter' ? <AssetShell kind={station.id} selected={selected} /> : <ProceduralShell selected={selected} oven={station.kind === 'oven'} statusColor={machine ? undefined : status === 'FAULT' ? '#e14e4e' : status === 'BLOCKED' || status === 'STARVED' ? '#e1a545' : status === 'RUNNING' ? '#53b879' : '#87928c'} />}
+    {machine && <ProcessAssembly station={station} machine={machine} time={time} />}
+    {!machine && <Box position={[1.01, 2.3, -0.65]} size={[0.14, 0.14, 0.14]} color={status === 'FAULT' ? '#e14e4e' : status === 'BLOCKED' || status === 'STARVED' ? '#e1a545' : status === 'RUNNING' ? '#53b879' : '#87928c'} />}
     <sprite position={[0, 2.28, 0]} scale={[1.1, 0.275, 1]}><spriteMaterial map={label} /></sprite>
   </group>
 }
@@ -95,35 +97,50 @@ function CameraRig({ station, resetKey }: { station: Station | null; resetKey: n
   return <OrbitControls makeDefault minDistance={3} maxDistance={42} maxPolarAngle={Math.PI / 2.05} />
 }
 
-function Boards({ snapshot, selectedBoard, onSelectBoard }: { snapshot: Snapshot; selectedBoard: string | null; onSelectBoard: (id: string) => void }) {
+function Boards({ scene, selectedBoard, onSelectBoard }: { scene: SceneModel; selectedBoard: string | null; onSelectBoard: (id: string) => void }) {
   const ref = useRef<THREE.InstancedMesh>(null)
   const ids = useRef<string[]>([])
+  useFrame(() => {
+    if (!ref.current || !scene.boards.some(board => board.visual && board.visual.fromX !== board.visual.toX)) return
+    const matrix = new THREE.Matrix4()
+    scene.boards.forEach((board, index) => {
+      if (!board.visual) return
+      const fraction = Math.max(0, Math.min(1, (Date.now() - board.visual.startedAt) / 300))
+      matrix.makeTranslation(board.visual.fromX + (board.visual.toX - board.visual.fromX) * fraction, 1.08, 0.12)
+      ref.current!.setMatrixAt(index, matrix)
+    })
+    ref.current.instanceMatrix.needsUpdate = true
+  })
   useEffect(() => {
     if (!ref.current) return
     const mesh = ref.current; const matrix = new THREE.Matrix4(); let count = 0
     ids.current = []
     const add = (id: string, x: number, z: number) => { matrix.makeTranslation(x, 1.08, z); mesh.setMatrixAt(count, matrix); mesh.setColorAt(count, new THREE.Color(id === selectedBoard ? '#e3b85a' : '#32715b')); ids.current.push(id); count++ }
-    snapshot.stations.forEach((machine, index) => {
-      const x = stations[index].position[0]
-      machine.queue.forEach((id, i) => add(id, x - 1.2 + i * 0.5, -0.18))
-      if (machine.boardId) {
-        const progress = machine.startedAtMs === null ? 1 : Math.max(0, Math.min(1, ((machine.faultAtMs ?? snapshot.simTimeMs) - machine.startedAtMs) / machine.processTimeMs))
-        add(machine.boardId, x - 0.55 + progress * 1.1, 0.12)
+    scene.boards.forEach(board => {
+      const station = stations.find(item => item.id === board.stationId)
+      if (!station) return
+      const x = station.position[0]
+      if (board.visual) add(board.id, board.visual.fromX, 0.12)
+      else if (board.position === 'queued') add(board.id, x - 1.2 + board.queueIndex * 0.5, -0.18)
+      else {
+        const machine = scene.stations[board.stationId]?.localMotion
+        const progress = !machine || machine.startedAtMs === null ? 1 : Math.max(0, Math.min(1, ((machine.faultAtMs ?? scene.simTimeMs) - machine.startedAtMs) / machine.processTimeMs))
+        add(board.id, x - 0.55 + progress * 1.1, 0.12)
       }
     })
     mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
-  }, [snapshot, selectedBoard])
-  return <instancedMesh ref={ref} args={[undefined, undefined, snapshot.quantity]} name="PCB_Anchors" castShadow frustumCulled={false} onClick={e => { e.stopPropagation(); if (e.instanceId !== undefined && ids.current[e.instanceId]) onSelectBoard(ids.current[e.instanceId]) }}><boxGeometry args={[0.4, 0.045, 0.32]} /><meshStandardMaterial color="#ffffff" metalness={0.2} roughness={0.6} /></instancedMesh>
+  }, [scene, selectedBoard])
+  return <instancedMesh ref={ref} args={[undefined, undefined, Math.max(1, scene.boards.length)]} name="PCB_Anchors" castShadow frustumCulled={false} onClick={e => { e.stopPropagation(); if (e.instanceId !== undefined && ids.current[e.instanceId]) onSelectBoard(ids.current[e.instanceId]) }}><boxGeometry args={[0.4, 0.045, 0.32]} /><meshStandardMaterial color="#ffffff" metalness={0.2} roughness={0.6} /></instancedMesh>
 }
 
-export default function Factory({ selected, onSelect, resetKey, snapshot, selectedBoard, onSelectBoard }: { selected: Station | null; onSelect: (station: Station) => void; resetKey: number; snapshot: Snapshot; selectedBoard: string | null; onSelectBoard: (id: string) => void }) {
-  const boardStation = snapshot.boards.find(board => board.id === selectedBoard)?.stationId
+export default function Factory({ selected, onSelect, resetKey, scene, selectedBoard, onSelectBoard }: { selected: Station | null; onSelect: (station: Station) => void; resetKey: number; scene: SceneModel; selectedBoard: string | null; onSelectBoard: (id: string) => void }) {
+  const boardStation = scene.boards.find(board => board.id === selectedBoard)?.stationId
   return <Canvas shadows dpr={[1, 1.5]} camera={{ position: overviewCamera.position, fov: 40 }} fallback={<div className="canvas-fallback">3D view unavailable. WebGL is required to view the factory.</div>}>
     <color attach="background" args={['#d9ded9']} /><fog attach="fog" args={['#d9ded9', 35, 80]} />
     <ambientLight intensity={1.25} /><directionalLight position={[4, 12, 8]} intensity={2} castShadow shadow-mapSize={[1024, 1024]} shadow-camera-left={-18} shadow-camera-right={18} shadow-camera-top={15} shadow-camera-bottom={-15} />
     <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[100, 100]} /><meshStandardMaterial color="#b8c1ba" roughness={0.95} /></mesh>
     <gridHelper args={[60, 60, '#9fa9a1', '#aab3ab']} position={[0, 0.005, 0]} />
-    {stations.map((station, index) => <Machine key={station.id} station={station} machine={snapshot.stations[index]} time={snapshot.simTimeMs} selected={selected?.id === station.id || boardStation === station.id} onSelect={() => onSelect(station)} />)}
-    <Boards snapshot={snapshot} selectedBoard={selectedBoard} onSelectBoard={onSelectBoard} /><CameraRig station={selected} resetKey={resetKey} />
+    {stations.map(station => <Machine key={station.id} station={station} machine={scene.stations[station.id]?.localMotion ?? null} status={scene.stations[station.id]?.state ?? 'UNKNOWN'} time={scene.simTimeMs} selected={selected?.id === station.id || boardStation === station.id} onSelect={() => onSelect(station)} />)}
+    <Boards scene={scene} selectedBoard={selectedBoard} onSelectBoard={onSelectBoard} /><CameraRig station={selected} resetKey={resetKey} />
   </Canvas>
 }

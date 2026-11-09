@@ -1,5 +1,11 @@
 # Architecture
 
+## W4 optional remote display
+
+The local simulator remains the default. `src/twin/` translates local snapshots to a neutral scene model and separately validates/reduces W3 snapshot-first WebSocket messages by epoch, revision and sequence. `remoteClient.ts` reconnects with capped backoff and replaces the projection on a new snapshot; its connection/activity state is separate from backend integrity. `src/scene/remoteMotion.ts` uses wall time only to interpolate observed board transfers and never changes the projection. W3's lack of process-start and queue data prevents reconstructing precise equipment motion. The scene uses the standard configured station order, not JSON map order; a nonstandard backend topology is unsupported and not discoverable from W3 snapshots.
+
+Vite and the optional nginx service reverse-proxy same-origin browser requests. Both validate allowed browser WebSocket origins before changing the upstream Origin; W3's own same-origin check remains in place. This is an unauthenticated localhost concept demo, not a production trust or security model.
+
 ## Browser demo
 
 The independent React/R3F browser demo owns its existing TypeScript virtual-time simulator, in-memory event log, replay reducer and presentation UI. It does not depend on the W2 process or a broker. Its known visual and replay limitations are in `README.md` and `docs/ACCEPTANCE.md`.

@@ -40,3 +40,6 @@
 
 - A 210-second scripted presentation drives fixed-time fault/recovery, camera presets, narration and KPI summary; unit tests check deterministic logs across different advancement chunks and fault propagation. Browser smoke covers start, pause, restart, exit and local-only cold start.
 - **Not fully accepted:** a complete 3½-minute presentation has not been exercised end-to-end in a browser; earlier cross-station visual jumps, v0.6 representative-GPU performance/LOD gaps, and build size warning remain. Static deployment is documented but has not been verified on an external host.
+# W4 verification (2026-11-09)
+
+See `docs/W4_REPORT.md` for commands, results and remaining gaps. W4 is a synthetic read-only integration; no production equipment, real MES, durable replay or security certification is implied.
