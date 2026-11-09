@@ -48,6 +48,22 @@ func NewHandler(store *twin.Store, consumer *ingest.Consumer) http.Handler {
 		writeJSON(w, h)
 	})
 	mux.HandleFunc("GET /api/assets", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, assets()) })
+	mux.HandleFunc("GET /api/runs/{id}/workorders/{order}", func(w http.ResponseWriter, r *http.Request) {
+		detail, ok := store.WorkOrderDetail(r.PathValue("id"), r.PathValue("order"))
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		writeJSON(w, detail)
+	})
+	mux.HandleFunc("GET /api/runs/{id}/boards/{board}/trace", func(w http.ResponseWriter, r *http.Request) {
+		trace, ok := store.BoardTrace(r.PathValue("id"), r.PathValue("board"))
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		writeJSON(w, trace)
+	})
 	mux.HandleFunc("GET /api/runs/{id}/snapshot", func(w http.ResponseWriter, r *http.Request) {
 		s, ok := store.Snapshot(r.PathValue("id"))
 		if !ok {

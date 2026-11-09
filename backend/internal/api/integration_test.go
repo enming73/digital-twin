@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -118,5 +120,29 @@ func TestIntegrationTwoWebsocketsReceiveW2Run(t *testing.T) {
 	snap, _ := store.Snapshot("demo-run")
 	if snap.Integrity != "complete" || len(snap.Boards) != 100 {
 		t.Fatalf("snapshot integrity %s boards %d", snap.Integrity, len(snap.Boards))
+	}
+	res, err := http.Get(server.URL + "/api/runs/demo-run/workorders/work-order-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var detail twin.WorkOrderDetail
+	if err := json.NewDecoder(res.Body).Decode(&detail); err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 200 || detail.Progress.Completed != 100 || detail.Progress.Created != 100 || detail.Reconciliation != "matched" {
+		t.Fatalf("order: %+v", detail)
+	}
+	res, err = http.Get(server.URL + "/api/runs/demo-run/boards/board-1/trace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trace twin.BoardTrace
+	if err := json.NewDecoder(res.Body).Decode(&trace); err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != 200 || trace.Board.WorkOrderID != detail.Order.ID || len(trace.Entries) != 23 || trace.Entries[0].EventType != "pcb.entered" || trace.Entries[22].EventType != "pcb.exited" {
+		t.Fatalf("trace: %+v", trace)
 	}
 }

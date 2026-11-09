@@ -1,5 +1,13 @@
 # Synthetic SMT event contract v1
 
+## W5 synthetic read-only query contract
+
+`GET /api/runs/{runId}/boards/{boardId}/trace` returns `{runId, epoch, revision, integrity, reason?, synthetic: true, board, route, entries}`. Each entry contains `sequence`, `eventId`, `eventType`, `machineId`, `simTimeMs`, `emittedAt`, `ingestedAt` and, for inspection events, `passed`. Sequence is the ordering key, including when virtual timestamps coincide. Only successfully applied events are included. The route is configured intent, not proof of a visit.
+
+`GET /api/runs/{runId}/workorders/{workOrderId}` returns the same envelope and route, plus `order`, nullable synthetic `metadata`, `progress` (`planned`, `created`, `inProgress`, `completed`, `passed`, `failed`, `uninspected`) and `reconciliation` (`pending`, `matched`, `mismatch`, or `unavailable`). Counts classify completed boards: failed means any recorded failed inspection; passed means one or more recorded inspections and none failed; uninspected means none recorded. Reconciliation is unavailable when any completed board is uninspected. A failed inspection does not imply scrap.
+
+Unknown run or entity returns 404. Identifiers are scoped to their run. Query data and integrity are atomically captured at the returned revision; resubmit the query for updates. History is in-memory only and does not heal loss. Gaps/conflicts freeze application, and uncertain or incomplete history must not be treated as complete; even `complete` is not a delivery guarantee. No rework, skipped stations, or repeated inspections are supported.
+
 This contract is for the independent simulator only. All events represent **SIMULATED** data; they do not indicate real equipment or production. The JSON Schema is `contracts/event.schema.json`; a sample for each of the nine event types is in `contracts/fixtures/`.
 
 The W3 backend consumes this same v1 contract; see `README.md` for its separate snapshot/WS protocol and conservative completeness rules. It records ingestion wall time separately from `emittedAt` and `simTimeMs` and never interprets either as measured equipment time.

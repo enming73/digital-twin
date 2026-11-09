@@ -1,5 +1,9 @@
 # Architecture
 
+## W5 mock MES
+
+`backend/internal/twin/` updates a per-board in-memory event trace inside the same lock as the W3 snapshot, after reducer validation and deduplication. The `backend/internal/mes/` fixture supplies optional descriptive metadata only; the simulator event stream remains authoritative. Read-only same-origin REST queries expose point-in-time board traces and order counts with epoch, revision and integrity. `src/components/RemoteTrace.tsx` cancels obsolete requests and keeps the W4 connection/integrity display separate. There is no durable history, automatic repair or real MES.
+
 ## W4 optional remote display
 
 The local simulator remains the default. `src/twin/` translates local snapshots to a neutral scene model and separately validates/reduces W3 snapshot-first WebSocket messages by epoch, revision and sequence. `remoteClient.ts` reconnects with capped backoff and replaces the projection on a new snapshot; its connection/activity state is separate from backend integrity. `src/scene/remoteMotion.ts` uses wall time only to interpolate observed board transfers and never changes the projection. W3's lack of process-start and queue data prevents reconstructing precise equipment motion. The scene uses the standard configured station order, not JSON map order; a nonstandard backend topology is unsupported and not discoverable from W3 snapshots.

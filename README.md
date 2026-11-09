@@ -1,5 +1,18 @@
 # SMT Digital Twin Studio
 
+## W5 mock MES traceability (SIMULATED, experimental)
+
+With the optional W4 stack below running, select the remote source and use **Mock MES · read only** to look up a board (for example `board-1`) or work order (`work-order-1`). Select an active PCB in the scene to fill the board search. Results are point-in-time: search again to refresh. A completed PCB remains searchable until the backend restarts. The response revision and integrity belong to the query and can differ from the current WebSocket projection. For example:
+
+```sh
+curl http://127.0.0.1:4174/api/runs/demo-run/boards/board-1/trace
+curl http://127.0.0.1:4174/api/runs/demo-run/workorders/work-order-1
+```
+
+The fixed route is configured in the backend and is not evidence of visitation; entries show observed board events in sequence order, with simulated time, emission wall time and ingestion wall time kept separate. Planned comes from the start event; created counts observed board identities; in-progress means not yet completed. Completed boards are classified as failed if any recorded inspection failed, passed if inspections exist and all passed, or uninspected otherwise. Failure does **not** mean physical scrap; boards still move through the simulated line. Reconciliation compares completion counts only when all completed boards have at least one inspection. Optional mock metadata does not create orders. All data is synthetic, not certified KPI or real MES data.
+
+History and duplicate tracking exist only in backend memory. Restart loses history; disconnected or missing events cannot be recovered, and `uncertain`, `gap` and `conflict` indicate limited trust. Even `complete` cannot detect a missing tail event. Only linear station progression is supported; rework, skipped stations and repeated inspections are rejected. No persistence, real MES, equipment control or production authentication is included. See `docs/W5_REPORT.md` and `docs/EVENT_CONTRACT.md`.
+
 ## W4 remote 3D view (experimental, SIMULATED)
 
 The default is still the independent browser-only local demo. To use the optional **read-only** W3 source, build the UI and start the isolated local stack from the repository root:

@@ -35,6 +35,46 @@ func TestNormalSimulatorStream(t *testing.T) {
 	if len(snap.Boards) != 100 || snap.WorkOrders["work-order-1"].Status != "completed" {
 		t.Fatalf("boards=%d order=%+v", len(snap.Boards), snap.WorkOrders["work-order-1"])
 	}
+	detail, ok := s.WorkOrderDetail("r", "work-order-1")
+	if !ok || detail.Progress.Created != 100 || detail.Progress.Completed != 100 || detail.Progress.InProgress != 0 || detail.Progress.Uninspected != 0 || detail.Progress.Passed+detail.Progress.Failed != 100 || detail.Reconciliation != "matched" {
+		t.Fatalf("work order: %+v", detail)
+	}
+	trace, ok := s.BoardTrace("r", "board-1")
+	if !ok || trace.Board.WorkOrderID != "work-order-1" || len(trace.Entries) != 23 || trace.Entries[0].EventType != "pcb.entered" || trace.Entries[len(trace.Entries)-1].EventType != "pcb.exited" {
+		t.Fatalf("trace: %+v", trace)
+	}
+	for i := 1; i < len(trace.Entries); i++ {
+		if trace.Entries[i].Sequence <= trace.Entries[i-1].Sequence {
+			t.Fatal("trace out of order")
+		}
+	}
+}
+
+func TestInspectionFixtureReconcilesFailedBoards(t *testing.T) {
+	cmd := exec.Command("go", "run", "./cmd/simulator", "run", "--scenario", "scenarios/inspection.json", "--run-id", "r", "--speed", "100000", "--dry-run")
+	cmd.Dir = "../../../simulator"
+	data, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewStore("test", map[string][]string{"r": {"loader", "spi", "aoi", "unloader"}})
+	scan := bufio.NewScanner(bytes.NewReader(data))
+	for scan.Scan() {
+		var e contract.Event
+		if err := json.Unmarshal(scan.Bytes(), &e); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Apply(e, time.Now()); err != nil {
+			t.Fatalf("sequence %d: %v", e.Sequence, err)
+		}
+	}
+	if err := scan.Err(); err != nil {
+		t.Fatal(err)
+	}
+	detail, ok := s.WorkOrderDetail("r", "work-order-1")
+	if !ok || detail.Progress.Completed != 10 || detail.Progress.Failed != 10 || detail.Progress.Passed != 0 || detail.Reconciliation != "matched" {
+		t.Fatalf("detail: %+v", detail)
+	}
 }
 
 func ev(seq int, id, kind string, machine *string, payload map[string]any) contract.Event {
