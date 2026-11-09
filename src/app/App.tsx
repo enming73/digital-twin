@@ -4,6 +4,7 @@ import { stations, type Station } from '../data/stations'
 import { defaultScenario } from '../data/scenario'
 import { Simulation } from '../simulation/engine'
 import Dashboard from '../components/Dashboard'
+import RemoteTrace from '../components/RemoteTrace'
 import { replayAt } from '../domain/replay'
 import { Presentation } from '../presentation/presentation'
 import { getMetrics } from '../domain/analytics'
@@ -109,6 +110,7 @@ export default function App() {
         <div className="detail" aria-live="polite"><div className="eyebrow">{selected ? 'STATION DETAILS' : 'EXPLORE THE LINE'}</div><h3>{selected ? selected.name : 'Select a station'}</h3><p>{selected ? selected.description : 'Choose a station above or select a machine in the factory view to focus the camera.'}</p>{selected && <><button className="refocus" onClick={() => setResetKey(n => n + 1)} aria-label="Refocus selected machine">↗ Refocus close-up</button>{source === 'local' ? snapshot.stations.filter(s => s.id === selected.id).map(machine => <p key={machine.id}>SIMULATED · {machine.state} · input {machine.queue.length}/{machine.inputCapacity} · cycle {machine.processTimeMs / 1000}s · board {machine.boardId ?? '—'}</p>) : <p>SIMULATED · observed {scene.stations[selected.id]?.observedState || 'unknown'} · flow {scene.stations[selected.id]?.flowState || 'unknown'} · {scene.stations[selected.id]?.reason || 'no reason'}</p>}</>}<div className="detail-meta"><span>MODEL <b>CONCEPTUAL</b></span><span>DATA <b>SIMULATED</b></span></div><p>{source === 'local' ? 'Amber tower is decorative; station states are simulated.' : 'Indicators reflect reported simulated state, not equipment telemetry.'}</p></div>
         {source === 'remote' && selected && remote?.projection?.machines[selected.id] && <div className="detail"><strong>SIMULATED ALARMS</strong>{Object.entries(remote.projection.machines[selected.id].alarms).length ? Object.entries(remote.projection.machines[selected.id].alarms).map(([id, reason]) => <p key={id}>{id} · {reason}</p>) : <p>None reported</p>}</div>}
         {source === 'local' && <Dashboard snapshot={snapshot} events={visibleEvents} selectedBoard={selectedBoard} onSelectBoard={chooseBoard} onSelectStation={id => setSelected(stations.find(s => s.id === id) ?? null)} />}
+        {source === 'remote' && <RemoteTrace runId={runId} epoch={remote?.projection?.epoch} selectedBoard={selectedBoard} />}
       </aside>
     </main>
     <footer className="disclaimer"><span>●</span> Concept demo · Synthetic data · Not affiliated with ASMPT <span className="footer-end">INDEPENDENTLY MODELED / V1.0</span></footer>

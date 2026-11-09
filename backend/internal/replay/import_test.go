@@ -33,6 +33,14 @@ func TestImportCompleteStreamAndRejectTruncation(t *testing.T) {
 	if len(snapshot.Boards) != 100 || snapshot.WorkOrders["work-order-1"].Status != "completed" {
 		t.Fatalf("snapshot: %d", len(snapshot.Boards))
 	}
+	trace, ok := store.BoardTrace("r", "board-1")
+	if !ok || len(trace.Entries) != 23 || trace.Entries[0].EventType != "pcb.entered" || trace.Entries[22].EventType != "pcb.exited" {
+		t.Fatalf("imported trace: %+v", trace)
+	}
+	detail, ok := store.WorkOrderDetail("r", "work-order-1")
+	if !ok || detail.Progress.Completed != 100 || detail.Reconciliation != "matched" {
+		t.Fatalf("imported order: %+v", detail)
+	}
 	live := twin.NewStore("different", map[string][]string{"r": stations})
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {

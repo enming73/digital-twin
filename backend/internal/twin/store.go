@@ -49,6 +49,7 @@ type ApplyResult struct{ Duplicate bool }
 type run struct {
 	snapshot     Snapshot
 	stations     []string
+	traces       map[string][]TraceEntry
 	ids          map[string]string
 	sequences    map[int]string
 	subscribers  map[chan Update]struct{}
@@ -122,7 +123,7 @@ func (s *Store) MarkUncertain(reason string) {
 func NewStore(epoch string, runs map[string][]string) *Store {
 	s := &Store{runs: map[string]*run{}}
 	for id, stations := range runs {
-		r := &run{stations: append([]string(nil), stations...), ids: map[string]string{}, sequences: map[int]string{}, subscribers: map[chan Update]struct{}{}, canEstablish: true, snapshot: Snapshot{RunID: id, Epoch: epoch, Integrity: "uncertain", Reason: "awaiting first event", Machines: map[string]Machine{}, Boards: map[string]Board{}, WorkOrders: map[string]WorkOrder{}}}
+		r := &run{stations: append([]string(nil), stations...), traces: map[string][]TraceEntry{}, ids: map[string]string{}, sequences: map[int]string{}, subscribers: map[chan Update]struct{}{}, canEstablish: true, snapshot: Snapshot{RunID: id, Epoch: epoch, Integrity: "uncertain", Reason: "awaiting first event", Machines: map[string]Machine{}, Boards: map[string]Board{}, WorkOrders: map[string]WorkOrder{}}}
 		for _, st := range stations {
 			r.snapshot.Machines[st] = Machine{Alarms: map[string]string{}}
 		}
@@ -204,6 +205,13 @@ func (s *Store) Apply(e contract.Event, at time.Time) (ApplyResult, error) {
 	next.EmittedAt = e.EmittedAt
 	next.LastIngestedAt = at.UTC()
 	r.snapshot = next
+	if id, ok := e.Payload["boardId"].(string); ok {
+		entry := TraceEntry{Sequence: e.Sequence, EventID: e.EventID, EventType: e.EventType, MachineID: immutable.MachineID, SimTimeMs: e.SimTimeMs, EmittedAt: e.EmittedAt, IngestedAt: at.UTC()}
+		if passed, ok := e.Payload["passed"].(bool); ok {
+			entry.Passed = &passed
+		}
+		r.traces[id] = append(r.traces[id], entry)
+	}
 	r.ids[e.EventID] = fingerprint
 	r.sequences[e.Sequence] = e.EventID
 	ingestedAt := at.UTC()
@@ -309,6 +317,9 @@ func reduce(s *Snapshot, stations []string, e contract.Event) error {
 			case "pcb.inspection.completed":
 				if !b.Processed {
 					return errors.New("inspection before processing")
+				}
+				if _, exists := b.Inspections[machine]; exists {
+					return errors.New("repeated inspection unsupported")
 				}
 				passed, _ := p["passed"].(bool)
 				b.Inspections[machine] = passed
