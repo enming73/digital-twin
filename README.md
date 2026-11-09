@@ -1,5 +1,36 @@
 # SMT Digital Twin Studio
 
+## W3 synthetic twin backend (experimental)
+
+The Go backend consumes **SIMULATED** W2 MQTT events; it is read-only and is not connected to equipment or the browser demo. Start a local isolated stack from the repository root:
+
+```sh
+docker compose -f compose.w2.yml -f compose.w3.yml up --build
+curl http://127.0.0.1:8080/api/health
+curl http://127.0.0.1:8080/api/assets
+curl http://127.0.0.1:8080/api/runs/demo-run/snapshot
+docker compose -f compose.w2.yml -f compose.w3.yml down
+```
+
+The Compose backend waits for Mosquitto, and the simulator waits for backend subscription readiness. HTTP and MQTT host ports bind localhost only. `GET /api/health` reports MQTT connectivity (503 until subscribed), not run completeness. The snapshot's `integrity` is `complete`, `uncertain`, `gap`, or `conflict`. A gap/conflict freezes that run; no automatic missing-event recovery is claimed. A never-seen run is uncertain. Compose asserts a fresh publisher with `--expect-fresh-run`, so the first sequence-1 event can establish completeness. Do **not** use that assertion if another publisher may already have run; without it, integrity remains uncertain even if sequence 1 arrives. Restart changes `epoch` and cannot recover missed events.
+
+The local broker bounds each subscriber's QoS backlog to 10,000 messages and 16 MiB. Sustained overload can still cause broker-side drops; a sequence gap is visible when a later event arrives, but a missing tail with no later event or disconnect is not detectable. MQTT publisher acknowledgements do not guarantee backend delivery.
+
+WebSocket `ws://127.0.0.1:8080/ws/runs/demo-run` sends an atomic `snapshot` first, followed by ordered `delta` messages with epoch, revision, event, ingestion timestamp and integrity. Integrity-only changes use `status`. A slow subscriber is closed (a `resync_required` frame is attempted); reconnect always takes a new snapshot, not a delta replay. Unknown runs return 404. Cross-origin browser requests are not enabled. This localhost demo has no authentication or TLS and is not suitable for production or public exposure.
+
+For a standalone backend, from `backend/` run `go run ./cmd/twin-backend --mqtt-url tcp://127.0.0.1:1883 --run-id demo-run`; `--stations` selects the ordered, unique station IDs. Set `TWIN_SCHEMA_PATH` when not starting from `backend/`; it must point to the canonical `contracts/event.schema.json`. To inspect a complete offline W2 log without MQTT, generate NDJSON as below and start the backend with `--import /tmp/opencode/w2-events.ndjson --run-id demo-run`. Offline mode validates the entire run before exposing it; health remains 503 because MQTT is intentionally disconnected. It is not durable storage or automatic broker recovery.
+
+```sh
+cd simulator
+go run ./cmd/simulator run --scenario scenarios/normal.json --run-id demo-run --speed 100000 --dry-run > /tmp/opencode/w2-events.ndjson
+cd ../backend
+go run ./cmd/twin-backend --import /tmp/opencode/w2-events.ndjson --run-id demo-run
+go test -race ./...
+W3_MQTT_INTEGRATION=1 go test -count=1 ./internal/ingest ./internal/api -run Integration -v
+```
+
+See `docs/W3_REPORT.md` for verification and limitations. The registry points at existing frontend GLBs; the backend does not serve these assets. Processing-start, exact internal queues and capacities cannot be reconstructed from the W2 contract; observed and simulator-derived flow status remain separate. Duplicate tracking is memory-only and grows with events; there is no persistence, authentication, MES or equipment integration.
+
 ## W2 independent simulator
 
 The separate Go simulator generates **SIMULATED** data and does not connect to the browser or real equipment. It is awaiting user acceptance. See `docs/W2_REPORT.md` for test results and known gaps, and `docs/EVENT_CONTRACT.md` for the external event contract.

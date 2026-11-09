@@ -2,6 +2,8 @@
 
 This contract is for the independent simulator only. All events represent **SIMULATED** data; they do not indicate real equipment or production. The JSON Schema is `contracts/event.schema.json`; a sample for each of the nine event types is in `contracts/fixtures/`.
 
+The W3 backend consumes this same v1 contract; see `README.md` for its separate snapshot/WS protocol and conservative completeness rules. It records ingestion wall time separately from `emittedAt` and `simTimeMs` and never interprets either as measured equipment time.
+
 Each envelope contains `schemaVersion`, `eventId`, `runId`, `source`, nullable `machineId`, `eventType`, per-run `sequence`, virtual `simTimeMs`, UTC `emittedAt`, and `payload`. `source` is `simulator`, every payload includes `synthetic: true`, and `emittedAt` is wall time rather than virtual time. Work-order events have null machine IDs; other events have machine IDs. Inspection events originate at `spi` or `aoi`. Work-order completion additionally requires passed + failed = quantity; this arithmetic rule is enforced in Go because JSON Schema cannot express it.
 
 Topics are `demo/smt/{runId}/machines/{machineId}/events` and `demo/smt/{runId}/line/events`; topic identifiers cannot contain `/`, `+` or `#`. Events are not retained. MQTT QoS 1 is at-least-once: consumers must deduplicate by `(runId,eventId)` and detect missing or out-of-order global sequence numbers. Retrying a publication must preserve the entire serialized event. Durable recovery and consumer handling are future phases, not implemented by this contract.
