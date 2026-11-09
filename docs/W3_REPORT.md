@@ -1,12 +1,20 @@
 # W3 report — experimental implementation, review pending
 
+## Queue overload investigation and final W3 checks
+
+- Broker logs captured during repeatable high-load failures explicitly reported `Outgoing messages are being dropped for client twin-...`; broker per-client outgoing queue exhaustion caused the observed missing MQTT deliveries. W2 publisher PUBACK confirms broker receipt, not delivery to the twin. The prior backend still detected subsequent sequence gaps and froze the run.
+- `deploy/mosquitto/mosquitto.conf` now bounds each client's queued QoS 1/2 traffic at 10,000 messages and 16 MiB, sized for this demo's 100-board burst. This is a mitigation, **not** end-to-end backpressure, durable delivery or a zero-loss guarantee. Sustained overload can still exceed either bound; losing the final events without a subsequent sequence or disconnect cannot be detected by the current protocol.
+- With backend race tests and browser E2E running concurrently, `W3_MQTT_INTEGRATION=1 go test -count=6 ./internal/api -run TestIntegration -v` passed 6/6 after the change (the equivalent earlier stress run failed 5/6 with broker drop logs). The concurrent backend race tests and browser E2E (9/9) passed. `W3_MQTT_INTEGRATION=1 go test -count=3 ./cmd/twin-backend ./internal/ingest ./internal/api -run 'TestIntegration|TestLiveCrash' -v` passed all nine runs; `go test -race -count=1 ./...` and `go vet ./...` passed in `backend/`; the W2 broker reconnect integration test passed.
+- An isolated Compose stack rebuilt with the revised broker config and current backend reached `sequence=3411`, `boards=100`, `integrity=complete`, work order `completed`; the isolated stack was subsequently removed.
+- W3's implemented behavior and listed acceptance scenarios have now been exercised, subject to the limits above and prior test coverage caveats. No independent code review has been performed; W3 remains subject to user acceptance and W4 is not authorized by this report.
+
 ## Follow-up verification — W3 remains open
 
 - A real WebSocket slow-reader test now exercises a stalled socket, server disconnection and reconnect to a current snapshot. A real MQTT live-crash test kills the backend after ten events, verifies the restarted process exposes an empty `uncertain` state with a new epoch, and restores the complete 100-board run using offline NDJSON. This is not automatic recovery.
 - A reproducible unit test found a stale subscription acknowledgement could set `subscribed=true` after disconnection. Connection generations now reject stale success and failure callbacks; race-enabled package tests passed.
 - Under concurrent heavy Go, Docker and frontend checks, the W2 integration test observed `expected sequence 2886, got 2887`; a separate two-WebSocket integration test also observed a sequence gap. Both froze the run and reported the gap, as designed. Re-running the same integration command separately passed; a further run alongside race tests passed too. The source of the intermittent gap has **not** been established, so a normal-flow acceptance pass under load cannot be claimed. Do not interpret broker PUBACK as subscriber delivery acknowledgement.
 - The slow-reader test initially timed out with an artificially tiny receive buffer; after using the normal OS receive buffer it passed. Broader network environments and timing remain unverified.
-- These follow-up changes have not yet received independent review. W3 is not ready for acceptance until the intermittent missing-event behavior is investigated and the full acceptance checks are rerun.
+- These follow-up changes have not yet received independent review. The original intermittent missing-event behavior was subsequently investigated and mitigated as recorded above.
 
 ## Objective and scope
 
@@ -41,4 +49,4 @@ From root, run `docker compose -f compose.w2.yml -f compose.w3.yml up --build`; 
 - Simulator flow state/reason is preserved rather than independently derived. Because W2 has no process-start or queue snapshot, exact processing slots, queue capacity and intermediate timing are not represented. `pcb.exited` followed by `pcb.entered` can temporarily expose `in_transit`.
 - Bounded subscriber overflow closes the subscription, with best-effort `resync_required`; the store overflow behavior is unit-tested but a network-level slow-consumer test is not yet present. MQTT re-subscription failures, simultaneous loss/receive ordering and uncommon malformed/overflow inputs need broader adversarial coverage.
 - Event fingerprints and board state grow in memory until process exit. The implementation clones the complete projection for each event; no throughput or memory budget is claimed. MQTT/HTTP security is localhost-only demo configuration, not production authentication or TLS.
-- Implementation has not received an independent code review. These gaps mean this report does **not** assert all W3 acceptance criteria or authorize W4.
+- Implementation has not received an independent code review. The queue investigation and subsequent verification are recorded at the beginning of this report; user acceptance is still required before W4.
