@@ -1,5 +1,21 @@
 # SMT Digital Twin Studio
 
+## W4 remote 3D view (experimental, SIMULATED)
+
+The default is still the independent browser-only local demo. To use the optional **read-only** W3 source, build the UI and start the isolated local stack from the repository root:
+
+```sh
+npm ci
+npm run build
+docker compose -f compose.w2.yml -f compose.w3.yml -f compose.w4.yml up --build
+```
+
+Open `http://127.0.0.1:4174/`, then select **Remote W3 · read only** under **Data source**. The default run ID is `demo-run`. Switching to remote pauses the local simulator; switching back restores that paused local run. Camera selection and reset remain available. Remote controls do not operate equipment or the simulator; presentation, local replay, local controls and local analytics are unavailable in remote mode. Stop only this stack with `docker compose -f compose.w2.yml -f compose.w3.yml -f compose.w4.yml down`.
+
+For development use `npm run dev -- --host 127.0.0.1 --port 4173` while the W3 backend listens on `127.0.0.1:8080`. The Vite proxy accepts WebSocket origins only at `http://localhost:4173`, `http://127.0.0.1:4173`, and the equivalent port 5173 origins; the nginx proxy accepts only localhost/127.0.0.1 on port 4174. Each verifies the incoming browser Origin before rewriting it for the backend. These fixed origins, localhost port bindings, unauthenticated HTTP and lack of TLS are **local-demo security**, not a production or LAN deployment. Direct backend WebSocket cross-origin checks remain enabled. The nginx Compose service serves the previously built `dist/`; rebuild after changes.
+
+Remote snapshots and contiguous deltas drive the scene. A reconnect always replaces the view from a new snapshot; it cannot repair missing backend events. Connection status and the backend's `complete`, `uncertain`, `gap`, or `conflict` integrity are separate. `gap`/`conflict` means the backend froze its projection. The 15-second activity-stale label means **no messages**, not necessarily a broken connection: a completed run may legitimately be quiet. A backend restart can expose an empty uncertain run; no persistence or automatic catch-up is claimed. Processing start, queue capacity, cycle time, exact board location and movement are not available in W3; remote board placement and 300 ms transfer motion are illustrative, and machine mechanisms remain still. Only the standard seven-station topology/order is supported; W3 snapshots do not convey topology order, so a differently ordered backend cannot be detected reliably. See `docs/W4_REPORT.md` for checks and limitations.
+
 ## W3 synthetic twin backend (experimental)
 
 The Go backend consumes **SIMULATED** W2 MQTT events; it is read-only and is not connected to equipment or the browser demo. Start a local isolated stack from the repository root:

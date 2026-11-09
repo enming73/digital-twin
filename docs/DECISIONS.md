@@ -37,3 +37,10 @@
 - The presentation starts a fresh simulation at 1× and uses exact virtual-time fault (70s) and recovery (145s) boundaries, ending at 210s. Timer chunk size cannot alter the scripted events. Pausing adds pause/resume events, so the complete log is identical only for runs with the same user interactions.
 - Selecting Exit pauses the run and exposes existing manual controls and historical replay. Camera chapter transitions are immediate preset changes; no rendered-frame clock advances simulation.
 - Vite's current build is intended for deployment at a URL root. Local GLBs and procedural fallback avoid external service dependencies; optional offline caching is not implemented.
+# W4 decisions (2026-11-09)
+
+- Keep remote optional and read-only; local simulation, replay and presentation are retained and paused on remote selection.
+- Use W3's atomic WS snapshot before deltas, rather than a separate REST snapshot that could race the subscription. Never interpret a fresh snapshot as repairing an uncertain/gapped backend.
+- Show observed and flow status independently; avoid fabricating queue or processing data. Animate only visually after an observed exit and adjacent entry.
+- Validate the browser's original local Origin at each proxy before setting the upstream Origin. The user explicitly approved this correction to the W4 plan.
+- W3 does not supply station ordering, so W4 assumes the standard seven-station order; alternate backend topology is unsupported.
