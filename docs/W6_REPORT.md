@@ -1,5 +1,7 @@
 # W6 implementation report — in progress, not accepted
 
+> Status note (2026-11-10): the durable-source recovery work in [`W6_RECOVERY_REPORT.md`](W6_RECOVERY_REPORT.md) supersedes the MQTT-only burst failure for the recovery path. This report's acceptance table describes the state before that work.
+
 ## Current implementation
 
 The optional `compose.w6.yml` adds PostgreSQL 16 and connects the backend through `DATABASE_URL`. `backend/migrations/` defines event, run, checkpoint, asset and W5 projection tables. `backend/internal/persistence/` implements schema migration, a per-run advisory writer lease, transactional event/projection writes, deduplication, frozen integrity status, ordered reads and restoration from the complete stored prefix. The twin publishes only after journal commit. Durable MQTT mode uses manual acknowledgments after commit, ignores events for unregistered runs instead of stopping, and exits non-zero if durable ingestion fails. The backend still cannot recover messages absent from PostgreSQL; a restored run is `uncertain` unless already frozen as `gap` or `conflict`.
@@ -28,13 +30,13 @@ Checkpoints store a SHA-256 fingerprint per accepted event rather than a full en
 
 ## Acceptance status
 
-| W6 criterion | Status |
-|---|---|
-| Replay at selected timestamp reconstructs original state | Partial: core, API, remote UI and checkpoint tests implemented, including checkpoint-vs-full-replay comparison at six timestamps on a 501-event fixture; a full 1000-board checkpoint-vs-log comparison at every timestamp remains outstanding. |
-| Restart reconstructs latest state | Partial: 100- and 1000-board restarts passed, with checkpoint restore measured at 0–2 s versus 58 s for full replay; crash boundary and MQTT loss cases incomplete. |
-| Duplicates and out-of-order events handled by policy | Partial: deterministic tests cover duplicates, conflicts and gaps; no automatic missing-event repair. |
-| 1000 boards without loss | **Not passed as a general resilience claim:** paced runs reconciled, but the high-rate burst above failed and source completeness remains uncertain. |
-| Measured latency, throughput, memory and FPS with conditions | **Not passed:** complete measurement and representative GPU/browser conditions outstanding. |
+| W6 criterion                                                 | Status                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replay at selected timestamp reconstructs original state     | Partial: core, API, remote UI and checkpoint tests implemented, including checkpoint-vs-full-replay comparison at six timestamps on a 501-event fixture; a full 1000-board checkpoint-vs-log comparison at every timestamp remains outstanding. |
+| Restart reconstructs latest state                            | Partial: 100- and 1000-board restarts passed, with checkpoint restore measured at 0–2 s versus 58 s for full replay; crash boundary and MQTT loss cases incomplete.                                                                             |
+| Duplicates and out-of-order events handled by policy         | Partial: deterministic tests cover duplicates, conflicts and gaps; no automatic missing-event repair.                                                                                                                                           |
+| 1000 boards without loss                                     | **Not passed as a general resilience claim:** paced runs reconciled, but the high-rate burst above failed and source completeness remains uncertain.                                                                                            |
+| Measured latency, throughput, memory and FPS with conditions | **Not passed:** complete measurement and representative GPU/browser conditions outstanding.                                                                                                                                                     |
 
 Checkpoints are written every 500 events and after a clean consumer shutdown; only the three newest are retained. A valid checkpoint restores in 0–2 s on this host versus 58 s for full replay of 34,911 events. Unavailable, corrupt or incompatible checkpoints fall back to full replay. No real MES or equipment is connected; this is an unauthenticated localhost synthetic demo, not production infrastructure. No W6 completion is claimed.
 
