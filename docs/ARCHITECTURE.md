@@ -1,5 +1,11 @@
 # Architecture
 
+## W6 experimental persistence (in progress)
+
+When `DATABASE_URL` is set, the backend migrates PostgreSQL, obtains a session-owned per-run writer lock, restores the committed prefix, then subscribes to MQTT. The store serializes reducer validation, transactional event/projection persistence and WebSocket publication; durable mode manually acknowledges a received MQTT message only after commit. `GET /api/health` additionally checks the lock-owning database connection. A durable ingestion error stops the backend; recovery of events that never reached the database is not guaranteed. Disconnect/restart makes source coverage uncertain, while stored gaps and conflicts stay frozen.
+
+Read-only `/api/runs/{id}/replay` reconstructs an independent state from the event prefix and `/api/runs/{id}/events` returns a bounded time range. The remote UI renders historical state independently of the still-running live WebSocket and hides live MES trace details during history. A versioned checkpoint is written atomically every 500 events and once more after a clean consumer shutdown; only the three newest per run are retained. Checkpoints index each event by SHA-256 fingerprint and are verified in one ordered scan against the committed prefix, trace entries and persisted board/work-order projections before the suffix is reduced. Corrupt or incompatible checkpoints fall back to full replay, and a damaged checkpoint at the committed cursor is replaced on the next clean shutdown. Durable ingestion ignores events for unregistered runs and exits non-zero on storage failure. The 100000× 1000-board burst test exceeded the broker queue and failed; see `docs/W6_REPORT.md`. This stack remains local, synthetic and unauthenticated.
+
 ## W5 mock MES
 
 `backend/internal/twin/` updates a per-board in-memory event trace inside the same lock as the W3 snapshot, after reducer validation and deduplication. The `backend/internal/mes/` fixture supplies optional descriptive metadata only; the simulator event stream remains authoritative. Read-only same-origin REST queries expose point-in-time board traces and order counts with epoch, revision and integrity. `src/components/RemoteTrace.tsx` cancels obsolete requests and keeps the W4 connection/integrity display separate. There is no durable history, automatic repair or real MES.

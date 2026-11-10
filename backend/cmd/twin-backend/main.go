@@ -14,13 +14,23 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"smt-digital-twin/backend/internal/api"
 	"smt-digital-twin/backend/internal/ingest"
+	"smt-digital-twin/backend/internal/persistence"
 	"smt-digital-twin/backend/internal/replay"
 	"smt-digital-twin/backend/internal/twin"
 )
 
 func validID(id string) bool { return id != "" && !strings.ContainsAny(id, "/+#\x00") }
+func finishShutdown(ctx context.Context, consumerDone <-chan struct{}, save func() error) error {
+	select {
+	case <-consumerDone:
+		return save()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 func parseStations(value string) ([]string, error) {
 	ids := strings.Split(value, ",")
 	seen := map[string]bool{}
@@ -49,6 +59,45 @@ func main() {
 		log.Fatal(err)
 	}
 	store := twin.NewStore(hex.EncodeToString(epoch), map[string][]string{*run: stations})
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	var readiness func(context.Context) error
+	var history api.History
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL != "" {
+		if *importPath != "" {
+			log.Fatal("DATABASE_URL cannot be combined with offline import")
+		}
+		pool, err := pgxpool.New(ctx, databaseURL)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer pool.Close()
+		if err := pool.Ping(ctx); err != nil {
+			log.Fatal(err)
+		}
+		if err := persistence.Migrate(ctx, pool); err != nil {
+			log.Fatal(err)
+		}
+		lease, err := persistence.AcquireRunWriter(ctx, pool, *run)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer func() {
+			if err := lease.Close(context.Background()); err != nil {
+				log.Printf("close writer lease: %v", err)
+			}
+		}()
+		if _, err := persistence.EnsureRun(ctx, pool, *run, stations); err != nil {
+			log.Fatal(err)
+		}
+		store, err = persistence.RestoreWithLease(ctx, pool, *run, stations, hex.EncodeToString(epoch), lease)
+		if err != nil {
+			log.Fatal(err)
+		}
+		readiness = lease.Ping
+		history = replay.HistoricalService{DB: pool}
+	}
 	if !*fresh && *importPath == "" {
 		store.MarkUncertain("publisher may have started before subscription")
 	}
@@ -64,24 +113,53 @@ func main() {
 		}
 	}
 	consumer := ingest.NewConsumer(store)
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	if databaseURL != "" {
+		consumer = ingest.NewDurableConsumer(store)
+	}
+	consumerDone := make(chan struct{})
+	consumerFailure := make(chan error, 1)
 	if *importPath == "" {
 		go func() {
+			defer close(consumerDone)
 			if err := consumer.Run(ctx, *broker); err != nil {
 				log.Printf("MQTT error: %v", err)
+				select {
+				case consumerFailure <- err:
+				default:
+				}
 				stop()
 			}
 		}()
+	} else {
+		close(consumerDone)
 	}
-	server := &http.Server{Addr: *listen, Handler: api.NewHandler(store, consumer), ReadHeaderTimeout: 5 * time.Second}
+	server := &http.Server{Addr: *listen, Handler: api.NewHandlerWithHistory(store, consumer, readiness, history), ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdown)
 	}()
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(err)
+	serveErr := server.ListenAndServe()
+	stop()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := finishShutdown(shutdownCtx, consumerDone, func() error {
+		if databaseURL == "" {
+			return nil
+		}
+		return store.SaveCheckpoint(*run)
+	}); err != nil {
+		log.Printf("checkpoint on shutdown: %v", err)
+	}
+	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		log.Print(serveErr)
+		os.Exit(1)
+	}
+	select {
+	case err := <-consumerFailure:
+		log.Printf("durable ingestion failed: %v", err)
+		os.Exit(1)
+	default:
 	}
 }

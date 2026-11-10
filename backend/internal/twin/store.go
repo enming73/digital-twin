@@ -1,6 +1,8 @@
 package twin
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -102,8 +104,55 @@ func (r *run) status() {
 }
 
 type Store struct {
-	mu   sync.Mutex
-	runs map[string]*run
+	mu      sync.Mutex
+	runs    map[string]*run
+	journal Journal
+	metrics Metrics
+}
+
+type Metrics struct {
+	Accepted      uint64         `json:"accepted"`
+	Duplicates    uint64         `json:"duplicates"`
+	Conflicts     uint64         `json:"conflicts"`
+	Gaps          uint64         `json:"gaps"`
+	StorageErrors uint64         `json:"storageErrors"`
+	LastSequence  map[string]int `json:"lastSequence"`
+}
+
+func (s *Store) Metrics() Metrics {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := s.metrics
+	result.LastSequence = make(map[string]int, len(s.runs))
+	for id, run := range s.runs {
+		result.LastSequence[id] = run.snapshot.LastSequence
+	}
+	return result
+}
+
+// Journal commits a validated candidate before it becomes visible to readers.
+// Implementations must not call back into Store while Commit is running.
+type Journal interface {
+	Commit(event contract.Event, ingestedAt time.Time, candidate Snapshot, trace []TraceEntry, checkpoint *Checkpoint) error
+	SetIntegrity(runID, integrity, reason string) error
+}
+
+func (s *Store) reject(r *run, integrity, reason string) error {
+	if s.journal != nil {
+		if err := s.journal.SetIntegrity(r.snapshot.RunID, integrity, reason); err != nil {
+			s.metrics.StorageErrors++
+			return fmt.Errorf("persist integrity: %w", err)
+		}
+	}
+	if integrity == "gap" {
+		s.metrics.Gaps++
+	} else if integrity == "conflict" {
+		s.metrics.Conflicts++
+	}
+	r.snapshot.Integrity = integrity
+	r.snapshot.Reason = reason
+	r.status()
+	return errors.New(reason)
 }
 
 // MarkUncertain records a period in which non-retained events may be lost.
@@ -113,6 +162,14 @@ func (s *Store) MarkUncertain(reason string) {
 	for _, r := range s.runs {
 		r.canEstablish = false
 		if r.snapshot.Integrity == "complete" || (r.snapshot.Integrity == "uncertain" && r.snapshot.LastSequence == 0) {
+			if s.journal != nil {
+				if err := s.journal.SetIntegrity(r.snapshot.RunID, "uncertain", reason); err != nil {
+					r.snapshot.Integrity = "uncertain"
+					r.snapshot.Reason = "cannot persist uncertainty: " + err.Error()
+					r.status()
+					continue
+				}
+			}
 			r.snapshot.Integrity = "uncertain"
 			r.snapshot.Reason = reason
 			r.status()
@@ -131,12 +188,52 @@ func NewStore(epoch string, runs map[string][]string) *Store {
 	}
 	return s
 }
+
+// NewStoreWithJournal is intended for a storage-backed writer; a nil journal
+// has exactly the same in-memory behavior as NewStore.
+func NewStoreWithJournal(epoch string, runs map[string][]string, journal Journal) *Store {
+	s := NewStore(epoch, runs)
+	s.journal = journal
+	return s
+}
+
+// FinishRestore installs the journal only after the caller has reconstructed
+// a private store. A process restart cannot prove source coverage is complete.
+func (s *Store) FinishRestore(runID, integrity, reason string, journal Journal) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.journal != nil || journal == nil {
+		return errors.New("invalid restore journal")
+	}
+	r, ok := s.runs[runID]
+	if !ok {
+		return errors.New("unknown run")
+	}
+	if integrity != "gap" && integrity != "conflict" {
+		integrity = "uncertain"
+		reason = "source coverage after restart is unverified"
+	}
+	r.snapshot.Integrity = integrity
+	r.snapshot.Reason = reason
+	r.canEstablish = false
+	s.journal = journal
+	return nil
+}
 func clone(s Snapshot) Snapshot {
 	b, _ := json.Marshal(s)
 	var out Snapshot
 	_ = json.Unmarshal(b, &out)
 	return out
 }
+
+// Knows reports whether a run is registered with this store.
+func (s *Store) Knows(runID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.runs[runID]
+	return ok
+}
+
 func (s *Store) Snapshot(id string) (Snapshot, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -150,6 +247,9 @@ func (s *Store) Snapshot(id string) (Snapshot, bool) {
 func (s *Store) Apply(e contract.Event, at time.Time) (ApplyResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.journal != nil {
+		at = at.UTC().Truncate(time.Microsecond)
+	}
 	r, ok := s.runs[e.RunID]
 	if !ok {
 		return ApplyResult{}, errors.New("unknown run")
@@ -158,59 +258,84 @@ func (s *Store) Apply(e contract.Event, at time.Time) (ApplyResult, error) {
 	if err != nil {
 		return ApplyResult{}, err
 	}
-	fingerprint := string(b)
+	sum := sha256.Sum256(b)
+	fingerprint := hex.EncodeToString(sum[:])
 	var immutable contract.Event
 	if err := json.Unmarshal(b, &immutable); err != nil {
 		return ApplyResult{}, err
 	}
 	if old, ok := r.ids[e.EventID]; ok {
 		if old == fingerprint {
+			s.metrics.Duplicates++
 			return ApplyResult{Duplicate: true}, nil
 		}
-		r.snapshot.Integrity = "conflict"
-		r.snapshot.Reason = "event ID conflict"
-		r.status()
-		return ApplyResult{}, errors.New(r.snapshot.Reason)
+		return ApplyResult{}, s.reject(r, "conflict", "event ID conflict")
 	}
 	if _, ok := r.sequences[e.Sequence]; ok {
-		r.snapshot.Integrity = "conflict"
-		r.snapshot.Reason = "sequence conflict"
-		r.status()
-		return ApplyResult{}, errors.New(r.snapshot.Reason)
+		return ApplyResult{}, s.reject(r, "conflict", "sequence conflict")
 	}
 	if r.snapshot.Integrity == "gap" || r.snapshot.Integrity == "conflict" {
 		return ApplyResult{}, errors.New("run frozen")
 	}
 	if e.Sequence != r.snapshot.LastSequence+1 {
-		r.snapshot.Integrity = "gap"
-		r.snapshot.Reason = fmt.Sprintf("expected sequence %d, got %d", r.snapshot.LastSequence+1, e.Sequence)
-		r.status()
-		return ApplyResult{}, errors.New(r.snapshot.Reason)
+		return ApplyResult{}, s.reject(r, "gap", fmt.Sprintf("expected sequence %d, got %d", r.snapshot.LastSequence+1, e.Sequence))
+	}
+	if e.SimTimeMs < r.snapshot.SimTimeMs {
+		return ApplyResult{}, s.reject(r, "conflict", "simulated time regression")
 	}
 	next := clone(r.snapshot)
 	if err := reduce(&next, r.stations, e); err != nil {
-		r.snapshot.Integrity = "conflict"
-		r.snapshot.Reason = err.Error()
-		r.status()
-		return ApplyResult{}, err
+		return ApplyResult{}, s.reject(r, "conflict", err.Error())
 	}
-	if r.canEstablish && next.LastSequence == 0 {
+	canEstablish := r.canEstablish
+	if canEstablish && next.LastSequence == 0 {
 		next.Integrity = "complete"
 		next.Reason = ""
-		r.canEstablish = false
+		canEstablish = false
 	}
 	next.Revision++
 	next.LastSequence = e.Sequence
 	next.SimTimeMs = e.SimTimeMs
 	next.EmittedAt = e.EmittedAt
 	next.LastIngestedAt = at.UTC()
-	r.snapshot = next
-	if id, ok := e.Payload["boardId"].(string); ok {
+	var trace *TraceEntry
+	if _, ok := e.Payload["boardId"].(string); ok {
 		entry := TraceEntry{Sequence: e.Sequence, EventID: e.EventID, EventType: e.EventType, MachineID: immutable.MachineID, SimTimeMs: e.SimTimeMs, EmittedAt: e.EmittedAt, IngestedAt: at.UTC()}
 		if passed, ok := e.Payload["passed"].(bool); ok {
 			entry.Passed = &passed
 		}
-		r.traces[id] = append(r.traces[id], entry)
+		trace = &entry
+	}
+	if s.journal != nil {
+		var entries []TraceEntry
+		if trace != nil {
+			id := e.Payload["boardId"].(string)
+			entries = append(append([]TraceEntry(nil), r.traces[id]...), *trace)
+		}
+		var checkpoint *Checkpoint
+		if next.LastSequence%500 == 0 {
+			candidate, err := copyCheckpoint(Checkpoint{Snapshot: next, Stations: r.stations, Traces: r.traces, IDs: r.ids, Sequences: r.sequences})
+			if err != nil {
+				return ApplyResult{}, err
+			}
+			candidate.IDs[e.EventID] = fingerprint
+			candidate.Sequences[e.Sequence] = e.EventID
+			if trace != nil {
+				candidate.Traces[e.Payload["boardId"].(string)] = entries
+			}
+			checkpoint = &candidate
+		}
+		if err := s.journal.Commit(immutable, at.UTC(), clone(next), entries, checkpoint); err != nil {
+			s.metrics.StorageErrors++
+			return ApplyResult{}, fmt.Errorf("commit event: %w", err)
+		}
+	}
+	r.canEstablish = canEstablish
+	s.metrics.Accepted++
+	r.snapshot = next
+	if trace != nil {
+		id := e.Payload["boardId"].(string)
+		r.traces[id] = append(r.traces[id], *trace)
 	}
 	r.ids[e.EventID] = fingerprint
 	r.sequences[e.Sequence] = e.EventID
