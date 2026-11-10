@@ -1,0 +1,21 @@
+# W6 100000x burst overlay (SIMULATED): the backend runs concurrently and MQTT
+# may drop messages; the durable source must still produce a verified run.
+services:
+  simulator:
+    command:
+      - run
+      - --scenario
+      - /scenarios/normal.json
+      - --speed
+      - "100000"
+      - --mqtt-url
+      - tcp://mosquitto:1883
+      - --run-id
+      - demo-run
+      - --outbox-path
+      - /outbox/outbox.db
+      - --outbox-max-bytes
+      - "268435456"
+      - --source-addr
+      - 0.0.0.0:8081
+      - --source-hold

@@ -1,0 +1,30 @@
+# W6 durable-source overlay. Combine with compose.w2.yml, compose.w3.yml and
+# compose.w6.yml. All data is SIMULATED. The source API has no host port.
+services:
+  simulator:
+    command:
+      - run
+      - --scenario
+      - /scenarios/normal.json
+      - --speed
+      - "100"
+      - --mqtt-url
+      - tcp://mosquitto:1883
+      - --run-id
+      - demo-run
+      - --outbox-path
+      - /outbox/outbox.db
+      - --outbox-max-bytes
+      - "268435456"
+      - --source-addr
+      - 0.0.0.0:8081
+      - --source-hold
+    volumes:
+      - simulator_outbox:/outbox
+
+  backend:
+    environment:
+      W6_SOURCE_URL: http://simulator:8081
+
+volumes:
+  simulator_outbox:
