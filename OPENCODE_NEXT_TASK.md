@@ -1,12 +1,18 @@
-# OpenCode next task — W2 planning gate
+# OpenCode next task — project handover and acceptance
 
-Read `AGENTS.md`, `docs/PROJECT_PLAN.md`, and `docs/W2_W6_ROADMAP.md`.
+The browser demo (v0.1–v1.0) and the industrial integration track (W1–W6) are implemented. W6 offline recovery is measured and awaiting final user acceptance.
 
-The user reports browser-demo v1.0 accepted. The original industrial integration track is **W1 reportedly complete, W2 next**. These version numbers belong to separate tracks. Inspect the repository before asserting completion or reusing components.
+Read, in order:
 
-1. Audit the actual implementation and run existing tests.
-2. Write `docs/IMPLEMENTATION_BASELINE.md` and `docs/W1_GAP_REPORT.md`.
-3. Write `docs/W2_IMPLEMENTATION_PLAN.md`, including schemas, module/file plan, MQTT setup, simulation invariants, deterministic tests, integration tests, run commands, and acceptance checklist.
-4. Preserve existing browser demo and all visual functionality.
-5. Do not add backend/UI integration, real equipment, MES, or unrelated redesign in W2.
-6. **STOP after planning and ask for approval before writing W2 code.**
+1. `AGENTS.md`
+2. `docs/PROJECT_SUMMARY.md`
+3. `README.md`
+4. The relevant phase report under `docs/`
+
+There is **no authorized implementation phase**. Do not start production hardening, real equipment/MES integration, dependency upgrades or redesign without a newly agreed scope and explicit user approval.
+
+Reasonable next actions at this gate:
+
+1. Confirm formal acceptance of W2–W6, or record specific acceptance gaps.
+2. Re-run the checks in `README.md` if verification is stale.
+3. If a new phase is approved, write a plan with scope, files, contracts, tests and acceptance criteria, then stop for approval before coding.

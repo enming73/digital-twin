@@ -1,8 +1,9 @@
 # OpenCode Agent Instructions — SMT Digital Twin Studio
 
-You are implementing an **industrial-realistic, browser-only, ASMPT-inspired SMT digital twin concept demo**. Read `docs/PROJECT_PLAN.md` in full before starting work. Treat it as the authoritative roadmap.
+You are working on an **industrial-realistic, browser-first, ASMPT-inspired SMT digital twin concept demo**. Read `docs/PROJECT_PLAN.md`, `docs/W2_W6_ROADMAP.md`, and `docs/PROJECT_SUMMARY.md` before starting work. The browser-demo and W2–W6 integration tracks are implemented; no new phase is currently authorized.
 
 ## Operating rules
+
 1. Work on **one phase only** (v0.1 initially). Never begin the next phase until the user explicitly approves.
 2. Before coding, inspect the repository, summarize intended changes and assumptions; avoid unnecessary questions when the plan provides defaults.
 3. Use React + TypeScript strict + Vite + React Three Fiber + Drei; keep simulation in pure TypeScript independent of React and Three.js.
@@ -15,9 +16,11 @@ You are implementing an **industrial-realistic, browser-only, ASMPT-inspired SMT
 10. At each phase gate, stop and request approval to continue.
 
 ## Initial task
+
 Implement **v0.1 only** from `docs/PROJECT_PLAN.md`: 7 conceptual SMT stations, realistic industrial materials, conveyors, static PCBs, camera orbit/focus/reset, selection/details, responsive UI, disclaimer, smoke tests and README. Create the project skeleton if absent.
 
 ## Expected completion report
+
 - Implemented features and file paths
 - How to install/run/test
 - Actual test results
@@ -25,4 +28,7 @@ Implement **v0.1 only** from `docs/PROJECT_PLAN.md`: 7 conceptual SMT stations, 
 - Explicit statement: `v0.1 complete; awaiting approval for v0.2` (only if acceptance criteria pass)
 
 ## Post-v1.0 industrial integration track (W1–W6)
-The browser-only v1.0 demo has been reported as user-accepted. For the next workstream, **read `docs/W2_W6_ROADMAP.md` and `OPENCODE_NEXT_TASK.md`**. These supersede the old 'Initial task' above for new sessions. W1 is reported complete but must be audited against actual repository files; W2 is the next proposed phase. Do not confuse browser-demo version numbers with W-phase maturity. First task is **audit and plan only**; wait for user approval before implementing W2.
+
+The browser-only v1.0 demo has been reported as user-accepted. W1–W6 are implemented in the repository: the independent simulator (W2), twin backend (W3), remote 3D view (W4), mock MES (W5), and persistence/replay/recovery (W6). W6 offline recovery is measured and awaiting final user acceptance. Do not confuse browser-demo version numbers with W-phase maturity.
+
+The project is at handover and formal acceptance, not at the start of a new implementation phase. Before making changes, read `docs/PROJECT_SUMMARY.md`, [`README.md`](README.md), and the relevant phase report. Any further work (production hardening, real equipment/MES integration, frontend polish) requires a newly agreed scope and explicit user approval.
