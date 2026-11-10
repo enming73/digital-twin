@@ -18,6 +18,7 @@ import (
 	"smt-digital-twin/backend/internal/api"
 	"smt-digital-twin/backend/internal/ingest"
 	"smt-digital-twin/backend/internal/persistence"
+	"smt-digital-twin/backend/internal/recovery"
 	"smt-digital-twin/backend/internal/replay"
 	"smt-digital-twin/backend/internal/twin"
 )
@@ -97,6 +98,19 @@ func main() {
 		}
 		readiness = lease.Ping
 		history = replay.HistoricalService{DB: pool}
+		if sourceURL := os.Getenv("W6_SOURCE_URL"); sourceURL != "" {
+			store.SetRequireTerminal()
+			coordinator := recovery.New(store, recovery.NewHTTPClient(sourceURL), recovery.Config{
+				RunID:          *run,
+				Generation:     os.Getenv("W6_SOURCE_GENERATION"),
+				ScenarioDigest: os.Getenv("W6_SCENARIO_DIGEST"),
+			})
+			go func() {
+				if err := coordinator.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+					log.Printf("durable source recovery: %v", err)
+				}
+			}()
+		}
 	}
 	if !*fresh && *importPath == "" {
 		store.MarkUncertain("publisher may have started before subscription")
@@ -114,7 +128,11 @@ func main() {
 	}
 	consumer := ingest.NewConsumer(store)
 	if databaseURL != "" {
-		consumer = ingest.NewDurableConsumer(store)
+		if os.Getenv("W6_SOURCE_URL") != "" {
+			consumer = ingest.NewDurableConsumerWithRecovery(store)
+		} else {
+			consumer = ingest.NewDurableConsumer(store)
+		}
 	}
 	consumerDone := make(chan struct{})
 	consumerFailure := make(chan error, 1)
