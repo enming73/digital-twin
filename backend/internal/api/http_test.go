@@ -63,6 +63,46 @@ func TestHTTPAndTwoWebsocketSubscribers(t *testing.T) {
 	}
 }
 
+func TestRecoveryPromotionPushesSnapshotToConnectedClient(t *testing.T) {
+	store := twin.NewStore("epoch", map[string][]string{"r": {"a"}})
+	server := httptest.NewServer(NewHandler(store, ingest.NewConsumer(store)))
+	defer server.Close()
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http")+"/ws/runs/r", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	var initial map[string]any
+	if err := conn.ReadJSON(&initial); err != nil || initial["type"] != "snapshot" {
+		t.Fatalf("initial snapshot: %v %v", initial, err)
+	}
+	if _, err := store.Apply(contract.Event{RunID: "r", EventID: "one", Sequence: 1, EventType: "workorder.started", SchemaVersion: 1, Source: "simulator", EmittedAt: "2026-11-10T00:00:00Z", Payload: map[string]any{"workOrderId": "wo", "quantity": float64(1), "synthetic": true}}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.PromoteComplete("r", 1); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for i := 0; i < 4; i++ {
+		var message struct {
+			Type     string         `json:"type"`
+			Epoch    string         `json:"epoch"`
+			Snapshot map[string]any `json:"snapshot"`
+		}
+		if err := conn.ReadJSON(&message); err != nil {
+			t.Fatalf("read update: %v", err)
+		}
+		if message.Type != "snapshot" {
+			continue
+		}
+		if message.Epoch == "epoch" || message.Snapshot["epoch"] != message.Epoch || message.Snapshot["terminalVerified"] != true {
+			t.Fatalf("stale recovery snapshot: %+v", message)
+		}
+		return
+	}
+	t.Fatal("no new-epoch snapshot after recovery promotion")
+}
+
 func TestSlowWebsocketDisconnectsAndResynchronizes(t *testing.T) {
 	store := twin.NewStore("epoch", map[string][]string{"r": {"a"}})
 	server := httptest.NewServer(NewHandler(store, ingest.NewConsumer(store)))

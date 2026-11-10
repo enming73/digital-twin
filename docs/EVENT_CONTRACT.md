@@ -14,9 +14,23 @@ The W3 backend consumes this same v1 contract; see `README.md` for its separate 
 
 Each envelope contains `schemaVersion`, `eventId`, `runId`, `source`, nullable `machineId`, `eventType`, per-run `sequence`, virtual `simTimeMs`, UTC `emittedAt`, and `payload`. `source` is `simulator`, every payload includes `synthetic: true`, and `emittedAt` is wall time rather than virtual time. Work-order events have null machine IDs; other events have machine IDs. Inspection events originate at `spi` or `aoi`. Work-order completion additionally requires passed + failed = quantity; this arithmetic rule is enforced in Go because JSON Schema cannot express it.
 
-Topics are `demo/smt/{runId}/machines/{machineId}/events` and `demo/smt/{runId}/line/events`; topic identifiers cannot contain `/`, `+` or `#`. Events are not retained. MQTT QoS 1 is at-least-once: consumers must deduplicate by `(runId,eventId)` and detect missing or out-of-order global sequence numbers. Retrying a publication must preserve the entire serialized event. Durable recovery and consumer handling are future phases, not implemented by this contract.
+Topics are `demo/smt/{runId}/machines/{machineId}/events` and `demo/smt/{runId}/line/events`; topic identifiers cannot contain `/`, `+` or `#`. Events are not retained. MQTT QoS 1 is at-least-once: consumers must deduplicate by `(runId,eventId)` and detect missing or out-of-order global sequence numbers. Retrying a publication must preserve the entire serialized event. The W6 durable source protocol below provides ordered catch-up; MQTT alone is never proof of persistence.
 
 `pcb.entered` means a station takes ownership in its input queue. `pcb.process.completed` occurs before `pcb.exited`; exit means leaving the processing/holding slot, immediately before the next station's entered event. Inspection follows process completion and precedes exit. Work-order start precedes board events; completion follows final exit. Observed machine status (`IDLE`, `RUNNING`, `FAULT`) is distinct from derived flow status (`NORMAL`, `BLOCKED`, `STARVED`), which includes a reason.
+
+## W6 durable source protocol v1 (internal)
+
+When the simulator runs with `--outbox-path`, each virtual boundary is committed to SQLite before any MQTT publication: the exact serialized envelopes, the post-`Next()` engine checkpoint, and the optional terminal record. Envelopes are immutable once committed; retries must reuse the stored bytes.
+
+`--source-addr` exposes a read-only HTTP API (disabled by default; Compose binds it inside the network with no host port). All responses are JSON and all data is **SIMULATED**. It never serves SQLite files and accepts no equipment commands.
+
+`GET /v1/runs/{runId}/manifest` returns `protocolVersion` (1), `runId`, `sourceGenerationId`, `scenarioDigest`, durable `head` and `terminal` (or null). `sourceGenerationId` is derived from the run ID and canonical scenario digest, so a changed scenario yields a different generation. Unknown runs return 404.
+
+`GET /v1/runs/{runId}/events?after=N&limit=L` returns `{protocolVersion, runId, head, terminal, events}` where `events` are the exact stored envelopes with `sequence > N`, in ascending order. `0 <= N`; `1 <= L <= 500`. A page is truncated before the 1 MiB response budget; a single envelope that cannot fit returns 413 rather than being split. Invalid bounds return 400 and unknown runs 404. Clients must not treat a non-terminal head as complete.
+
+`POST /v1/runs/{runId}/ack` accepts `{protocolVersion:1, generation, sequence}` and returns `{acknowledged}`. It is a backend control-plane acknowledgement of a durably committed contiguous prefix, not an equipment command and not proof that source events were delivered. Acknowledgements must match the registered generation, must not exceed `head`, and must be monotonically non-decreasing; violations return 409. This phase persists the cursor and never deletes source events.
+
+Protocol requests may include `?protocolVersion=1`; any other version returns 400. MQTT remains a best-effort notification path: broker delivery, QoS 1 and PUBACK are never treated as evidence of backend persistence.
 
 ## Browser event migration mapping
 

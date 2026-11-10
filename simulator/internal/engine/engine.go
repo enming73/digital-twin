@@ -28,6 +28,7 @@ type Snapshot struct {
 type Engine struct {
 	config     scenario.Scenario
 	runID      string
+	seed       uint32
 	sequence   int
 	snapshot   Snapshot
 	started    bool
@@ -43,7 +44,7 @@ func New(s scenario.Scenario, seed uint32, runID string) (*Engine, error) {
 	if runID == "" || strings.ContainsAny(runID, "/+#") {
 		return nil, fmt.Errorf("invalid run ID")
 	}
-	e := &Engine{config: s, runID: runID, random: seed, failed: map[string]bool{}}
+	e := &Engine{config: s, runID: runID, seed: seed, random: seed, failed: map[string]bool{}}
 	for _, st := range s.Stations {
 		e.snapshot.Stations = append(e.snapshot.Stations, Station{Station: st})
 	}
@@ -57,6 +58,9 @@ func (e *Engine) Snapshot() Snapshot {
 	}
 	return s
 }
+
+// RunID reports the run identity this engine emits for.
+func (e *Engine) RunID() string { return e.runID }
 func (e *Engine) emit(out *[]contract.Event, kind string, machine *string, payload map[string]any) {
 	e.sequence++
 	payload["synthetic"] = true

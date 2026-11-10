@@ -1,0 +1,20 @@
+# W6 1000-board soak overlay (SIMULATED). Used by tests/integration/w6-recovery.sh.
+services:
+  simulator:
+    command:
+      - run
+      - --scenario
+      - /scenarios/w6-1000.json
+      - --speed
+      - "100"
+      - --mqtt-url
+      - tcp://mosquitto:1883
+      - --run-id
+      - demo-run
+      - --outbox-path
+      - /outbox/outbox.db
+      - --outbox-max-bytes
+      - "268435456"
+      - --source-addr
+      - 0.0.0.0:8081
+      - --source-hold

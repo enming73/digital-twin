@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -18,17 +19,25 @@ type Health struct {
 	LastError  string `json:"lastError,omitempty"`
 }
 type Consumer struct {
-	mu         sync.Mutex
-	store      *twin.Store
-	health     Health
-	generation uint64
-	durable    bool
+	mu           sync.Mutex
+	store        *twin.Store
+	health       Health
+	generation   uint64
+	durable      bool
+	sourceBacked bool
 }
 
 func NewConsumer(store *twin.Store) *Consumer { return &Consumer{store: store} }
 
 // NewDurableConsumer acknowledges MQTT messages only after Store.Apply commits.
 func NewDurableConsumer(store *twin.Store) *Consumer { return &Consumer{store: store, durable: true} }
+
+// NewDurableConsumerWithRecovery is used when a durable source coordinator is
+// configured: live ordering gaps are recoverable from the source and must not
+// terminate ingestion. Conflicts still stop the consumer.
+func NewDurableConsumerWithRecovery(store *twin.Store) *Consumer {
+	return &Consumer{store: store, durable: true, sourceBacked: true}
+}
 
 func (c *Consumer) processMessage(topic string, payload []byte, ack func()) error {
 	event, err := contract.DecodeAndValidate(topic, payload)
@@ -45,6 +54,21 @@ func (c *Consumer) processMessage(topic string, payload []byte, ack func()) erro
 		return nil
 	}
 	if _, err = c.store.Apply(event, time.Now()); err != nil {
+		if errors.Is(err, twin.ErrRecovering) {
+			// Do not acknowledge: the durable source is the authority while the
+			// backend catches up, and unacknowledged MQTT delivery may repeat.
+			log.Printf("defer event %s/%s while recovery is active", event.RunID, event.EventID)
+			return nil
+		}
+		if c.sourceBacked {
+			if snapshot, ok := c.store.Snapshot(event.RunID); ok && snapshot.Integrity == "conflict" {
+				return fmt.Errorf("reject event %s/%s: %w", event.RunID, event.EventID, err)
+			}
+			// A gap caused by deferral or loss during recovery is repaired from
+			// the durable source; never acknowledge an event that was not applied.
+			log.Printf("defer out-of-order event %s/%s for source recovery: %v", event.RunID, event.EventID, err)
+			return nil
+		}
 		return fmt.Errorf("reject event %s/%s: %w", event.RunID, event.EventID, err)
 	}
 	if ack != nil {

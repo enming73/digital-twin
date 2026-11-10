@@ -79,14 +79,14 @@ func (j *Journal) SaveCheckpoint(checkpoint twin.Checkpoint) error {
 }
 
 func (j *Journal) SetIntegrity(runID, integrity, reason string) error {
-	if integrity != "gap" && integrity != "conflict" && integrity != "uncertain" {
+	if integrity != "gap" && integrity != "conflict" && integrity != "uncertain" && integrity != "complete" {
 		return fmt.Errorf("invalid integrity %q", integrity)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var result pgconn.CommandTag
 	var err error
-	query := `UPDATE runs SET integrity=$2, reason=$3 WHERE run_id=$1 AND (integrity NOT IN ('gap','conflict') OR integrity=$2)`
+	query := `UPDATE runs SET integrity=$2, reason=$3 WHERE run_id=$1 AND (integrity <> 'conflict' OR integrity=$2)`
 	if j.lease != nil {
 		j.lease.mu.Lock()
 		defer j.lease.mu.Unlock()
@@ -107,6 +107,15 @@ func (j *Journal) SetIntegrity(runID, integrity, reason string) error {
 }
 
 func (j *Journal) Commit(event contract.Event, at time.Time, candidate twin.Snapshot, trace []twin.TraceEntry, checkpoint *twin.Checkpoint) error {
+	return j.commit(event, at, candidate, trace, checkpoint, false)
+}
+
+// CommitRecovered allows a verified source event to extend a run frozen on gap.
+func (j *Journal) CommitRecovered(event contract.Event, at time.Time, candidate twin.Snapshot, trace []twin.TraceEntry, checkpoint *twin.Checkpoint) error {
+	return j.commit(event, at, candidate, trace, checkpoint, true)
+}
+
+func (j *Journal) commit(event contract.Event, at time.Time, candidate twin.Snapshot, trace []twin.TraceEntry, checkpoint *twin.Checkpoint, allowGap bool) error {
 	p := Projection{BoardTraces: map[string]json.RawMessage{}, WorkOrders: map[string]json.RawMessage{}}
 	if checkpoint != nil {
 		if checkpoint.Snapshot.RunID != event.RunID || checkpoint.Snapshot.LastSequence != event.Sequence {
@@ -164,9 +173,9 @@ func (j *Journal) Commit(event contract.Event, at time.Time, candidate twin.Snap
 		if j.lease.conn == nil || j.lease.runID != event.RunID {
 			return fmt.Errorf("writer lease unavailable for %q", event.RunID)
 		}
-		result, err = appendProjection(ctx, j.lease.conn, event, at, p)
+		result, err = appendProjection(ctx, j.lease.conn, event, at, p, allowGap)
 	} else {
-		result, err = AppendProjection(ctx, j.db, event, at, p)
+		result, err = appendProjection(ctx, j.db, event, at, p, allowGap)
 	}
 	if err != nil {
 		return err

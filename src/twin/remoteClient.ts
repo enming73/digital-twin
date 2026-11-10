@@ -46,6 +46,12 @@ export function createRemoteClient(options: { runId: string; onState: (state: Re
           publish({ projection, lastReceivedAt: Date.now(), stale: false, reason: null, snapshotVersion: state.snapshotVersion + 1 })
         } else {
           if (value.type === 'resync_required' || !state.projection) return disconnect('resync required')
+          if (value.type === 'snapshot') {
+            const projection = parseSnapshot(value.snapshot, options.runId)
+            if (!projection || value.epoch !== projection.epoch || value.revision !== projection.revision) return disconnect('invalid snapshot')
+            publish({ projection, lastReceivedAt: Date.now(), stale: false, reason: null, snapshotVersion: state.snapshotVersion + 1 })
+            return
+          }
           const result = applyMessage(state.projection, value)
           if (result.kind === 'resync') return disconnect(result.reason)
           publish({ projection: result.projection, lastReceivedAt: Date.now(), stale: false, reason: null })

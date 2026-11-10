@@ -66,14 +66,20 @@ func Append(ctx context.Context, db *pgxpool.Pool, event contract.Event, ingeste
 // AppendProjection atomically commits an event and its changed projections.
 // Reducer validation remains the caller's responsibility.
 func AppendProjection(ctx context.Context, db *pgxpool.Pool, event contract.Event, ingestedAt time.Time, projection Projection) (AppendResult, error) {
-	return appendProjection(ctx, db, event, ingestedAt, projection)
+	return appendProjection(ctx, db, event, ingestedAt, projection, false)
+}
+
+// AppendProjectionRecovered extends a run previously frozen on gap; only the
+// verified recovery coordinator may use it.
+func AppendProjectionRecovered(ctx context.Context, db *pgxpool.Pool, event contract.Event, ingestedAt time.Time, projection Projection) (AppendResult, error) {
+	return appendProjection(ctx, db, event, ingestedAt, projection, true)
 }
 
 type transactionBeginner interface {
 	Begin(context.Context) (pgx.Tx, error)
 }
 
-func appendProjection(ctx context.Context, db transactionBeginner, event contract.Event, ingestedAt time.Time, projection Projection) (AppendResult, error) {
+func appendProjection(ctx context.Context, db transactionBeginner, event contract.Event, ingestedAt time.Time, projection Projection, allowGap bool) (AppendResult, error) {
 	if event.SchemaVersion != 1 {
 		return AppendResult{}, fmt.Errorf("unsupported event schema version %d", event.SchemaVersion)
 	}
@@ -115,7 +121,7 @@ func appendProjection(ctx context.Context, db transactionBeginner, event contrac
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return AppendResult{}, err
 	}
-	if integrity == "gap" || integrity == "conflict" {
+	if integrity == "conflict" || (integrity == "gap" && !allowGap) {
 		return AppendResult{}, errors.New("run frozen")
 	}
 	if event.Sequence <= last {

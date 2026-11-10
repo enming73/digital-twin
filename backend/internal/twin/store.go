@@ -34,18 +34,19 @@ type WorkOrder struct {
 	Status   string  `json:"status"`
 }
 type Snapshot struct {
-	RunID          string               `json:"runId"`
-	Epoch          string               `json:"epoch"`
-	Revision       int                  `json:"revision"`
-	LastSequence   int                  `json:"lastSequence"`
-	Integrity      string               `json:"integrity"`
-	Reason         string               `json:"reason,omitempty"`
-	Machines       map[string]Machine   `json:"machines"`
-	Boards         map[string]Board     `json:"boards"`
-	WorkOrders     map[string]WorkOrder `json:"workOrders"`
-	LastIngestedAt time.Time            `json:"lastIngestedAt"`
-	SimTimeMs      int64                `json:"simTimeMs"`
-	EmittedAt      string               `json:"emittedAt"`
+	RunID            string               `json:"runId"`
+	Epoch            string               `json:"epoch"`
+	Revision         int                  `json:"revision"`
+	LastSequence     int                  `json:"lastSequence"`
+	Integrity        string               `json:"integrity"`
+	Reason           string               `json:"reason,omitempty"`
+	TerminalVerified bool                 `json:"terminalVerified"`
+	Machines         map[string]Machine   `json:"machines"`
+	Boards           map[string]Board     `json:"boards"`
+	WorkOrders       map[string]WorkOrder `json:"workOrders"`
+	LastIngestedAt   time.Time            `json:"lastIngestedAt"`
+	SimTimeMs        int64                `json:"simTimeMs"`
+	EmittedAt        string               `json:"emittedAt"`
 }
 type ApplyResult struct{ Duplicate bool }
 type run struct {
@@ -56,7 +57,12 @@ type run struct {
 	sequences    map[int]string
 	subscribers  map[chan Update]struct{}
 	canEstablish bool
+	recovering   bool
 }
+
+// ErrRecovering rejects live events while the durable source is catching up.
+var ErrRecovering = errors.New("run is recovering from the durable source")
+
 type Update struct {
 	Type       string          `json:"type"`
 	Epoch      string          `json:"epoch"`
@@ -65,6 +71,7 @@ type Update struct {
 	Integrity  string          `json:"integrity"`
 	Reason     string          `json:"reason,omitempty"`
 	IngestedAt *time.Time      `json:"ingestedAt,omitempty"`
+	Snapshot   *Snapshot       `json:"snapshot,omitempty"`
 }
 
 func (r *run) publish(u Update) {
@@ -104,10 +111,20 @@ func (r *run) status() {
 }
 
 type Store struct {
-	mu      sync.Mutex
-	runs    map[string]*run
-	journal Journal
-	metrics Metrics
+	mu              sync.Mutex
+	runs            map[string]*run
+	journal         Journal
+	metrics         Metrics
+	requireTerminal bool
+}
+
+// SetRequireTerminal makes the store refuse to advertise completeness until a
+// verified source terminal has been promoted. W3-only deployments keep the
+// legacy contiguous-from-one behavior.
+func (s *Store) SetRequireTerminal() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requireTerminal = true
 }
 
 type Metrics struct {
@@ -135,6 +152,10 @@ func (s *Store) Metrics() Metrics {
 type Journal interface {
 	Commit(event contract.Event, ingestedAt time.Time, candidate Snapshot, trace []TraceEntry, checkpoint *Checkpoint) error
 	SetIntegrity(runID, integrity, reason string) error
+}
+
+type recoveredJournal interface {
+	CommitRecovered(event contract.Event, ingestedAt time.Time, candidate Snapshot, trace []TraceEntry, checkpoint *Checkpoint) error
 }
 
 func (s *Store) reject(r *run, integrity, reason string) error {
@@ -244,7 +265,112 @@ func (s *Store) Snapshot(id string) (Snapshot, bool) {
 	return clone(r.snapshot), true
 }
 
+// SequenceFingerprint returns the stored envelope fingerprint for a committed
+// sequence so recovery can compare source bytes with the backend prefix.
+func (s *Store) SequenceFingerprint(runID string, sequence int) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, ok := s.runs[runID]
+	if !ok {
+		return "", false
+	}
+	id, ok := r.sequences[sequence]
+	if !ok {
+		return "", false
+	}
+	return r.ids[id], true
+}
+
+// BeginRecovery suspends live application for a run so the coordinator can
+// repair the committed prefix from the durable source. A conflict is never
+// thawed.
+func (s *Store) BeginRecovery(runID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, ok := s.runs[runID]
+	if !ok {
+		return errors.New("unknown run")
+	}
+	if r.snapshot.Integrity == "conflict" {
+		return errors.New("run is frozen in conflict")
+	}
+	r.recovering = true
+	return nil
+}
+
+// EndRecovery re-enables live application; a failed recovery leaves any gap
+// recorded so the run stays uncertain.
+func (s *Store) EndRecovery(runID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if r, ok := s.runs[runID]; ok {
+		r.recovering = false
+	}
+}
+
+// PromoteComplete records a verified contiguous run as complete. It refuses to
+// overwrite a conflict and requires the caller to have verified the source.
+func (s *Store) PromoteComplete(runID string, finalSequence int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, ok := s.runs[runID]
+	if !ok {
+		return errors.New("unknown run")
+	}
+	if r.snapshot.Integrity == "conflict" {
+		return errors.New("run is frozen in conflict")
+	}
+	if r.snapshot.LastSequence != finalSequence {
+		return fmt.Errorf("verified source ends at %d, committed head is %d", finalSequence, r.snapshot.LastSequence)
+	}
+	if s.journal != nil {
+		if err := s.journal.SetIntegrity(runID, "complete", ""); err != nil {
+			s.metrics.StorageErrors++
+			return fmt.Errorf("persist completion: %w", err)
+		}
+	}
+	r.snapshot.Integrity = "complete"
+	r.snapshot.Reason = ""
+	r.snapshot.TerminalVerified = true
+	r.snapshot.Epoch = fmt.Sprintf("%s-r%d", r.snapshot.Epoch, r.snapshot.Revision)
+	snapshot := clone(r.snapshot)
+	r.publish(Update{Type: "snapshot", Epoch: snapshot.Epoch, Revision: snapshot.Revision, Integrity: snapshot.Integrity, Snapshot: &snapshot})
+	r.status()
+	return nil
+}
+
+// RecoveryFailed keeps an unverifiable run uncertain and visible without
+// creating the sticky conflict state that is reserved for data contradictions.
+func (s *Store) RecoveryFailed(reason string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, r := range s.runs {
+		if r.snapshot.Integrity == "conflict" {
+			continue
+		}
+		if s.journal != nil {
+			if err := s.journal.SetIntegrity(r.snapshot.RunID, "uncertain", reason); err != nil {
+				s.metrics.StorageErrors++
+			}
+		}
+		r.snapshot.Integrity = "uncertain"
+		r.snapshot.Reason = reason
+		r.snapshot.TerminalVerified = false
+		r.status()
+	}
+}
+
 func (s *Store) Apply(e contract.Event, at time.Time) (ApplyResult, error) {
+	return s.apply(e, at, false)
+}
+
+// ApplyRecovered applies an event fetched from the durable source while the
+// run is suspended for recovery.
+func (s *Store) ApplyRecovered(e contract.Event, at time.Time) (ApplyResult, error) {
+	return s.apply(e, at, true)
+}
+
+func (s *Store) apply(e contract.Event, at time.Time, fromRecovery bool) (ApplyResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.journal != nil {
@@ -271,10 +397,13 @@ func (s *Store) Apply(e contract.Event, at time.Time) (ApplyResult, error) {
 		}
 		return ApplyResult{}, s.reject(r, "conflict", "event ID conflict")
 	}
+	if r.recovering && !fromRecovery {
+		return ApplyResult{}, ErrRecovering
+	}
 	if _, ok := r.sequences[e.Sequence]; ok {
 		return ApplyResult{}, s.reject(r, "conflict", "sequence conflict")
 	}
-	if r.snapshot.Integrity == "gap" || r.snapshot.Integrity == "conflict" {
+	if r.snapshot.Integrity == "conflict" || (r.snapshot.Integrity == "gap" && !fromRecovery) {
 		return ApplyResult{}, errors.New("run frozen")
 	}
 	if e.Sequence != r.snapshot.LastSequence+1 {
@@ -289,9 +418,14 @@ func (s *Store) Apply(e contract.Event, at time.Time) (ApplyResult, error) {
 	}
 	canEstablish := r.canEstablish
 	if canEstablish && next.LastSequence == 0 {
-		next.Integrity = "complete"
-		next.Reason = ""
 		canEstablish = false
+		if s.requireTerminal {
+			next.Integrity = "uncertain"
+			next.Reason = "awaiting verified source terminal"
+		} else {
+			next.Integrity = "complete"
+			next.Reason = ""
+		}
 	}
 	next.Revision++
 	next.LastSequence = e.Sequence
@@ -325,7 +459,13 @@ func (s *Store) Apply(e contract.Event, at time.Time) (ApplyResult, error) {
 			}
 			checkpoint = &candidate
 		}
-		if err := s.journal.Commit(immutable, at.UTC(), clone(next), entries, checkpoint); err != nil {
+		commit := s.journal.Commit
+		if fromRecovery {
+			if recovered, ok := s.journal.(recoveredJournal); ok {
+				commit = recovered.CommitRecovered
+			}
+		}
+		if err := commit(immutable, at.UTC(), clone(next), entries, checkpoint); err != nil {
 			s.metrics.StorageErrors++
 			return ApplyResult{}, fmt.Errorf("commit event: %w", err)
 		}
@@ -340,7 +480,9 @@ func (s *Store) Apply(e contract.Event, at time.Time) (ApplyResult, error) {
 	r.ids[e.EventID] = fingerprint
 	r.sequences[e.Sequence] = e.EventID
 	ingestedAt := at.UTC()
-	r.publish(Update{Type: "delta", Epoch: next.Epoch, Revision: next.Revision, Event: &immutable, Integrity: next.Integrity, IngestedAt: &ingestedAt})
+	if !fromRecovery {
+		r.publish(Update{Type: "delta", Epoch: next.Epoch, Revision: next.Revision, Event: &immutable, Integrity: next.Integrity, IngestedAt: &ingestedAt})
+	}
 	return ApplyResult{}, nil
 }
 

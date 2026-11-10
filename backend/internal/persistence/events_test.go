@@ -182,6 +182,43 @@ func TestAppendDurableGap(t *testing.T) {
 	}
 }
 
+func TestAppendDurableRecoveryExtendsGapButNeverConflict(t *testing.T) {
+	ctx := context.Background()
+	db := testDatabase(t)
+	if err := Migrate(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateRun(ctx, db, "run", []string{"loader"}); err != nil {
+		t.Fatal(err)
+	}
+	started := contract.Event{SchemaVersion: 1, EventID: "one", RunID: "run", Source: "simulator", EventType: "workorder.started", Sequence: 1, SimTimeMs: 0, EmittedAt: "2026-11-09T00:00:00Z", Payload: map[string]any{"workOrderId": "wo", "quantity": float64(1)}}
+	if _, err := Append(ctx, db, started, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	gap := contract.Event{SchemaVersion: 1, EventID: "three", RunID: "run", Source: "simulator", EventType: "workorder.completed", Sequence: 3, SimTimeMs: 2, EmittedAt: "2026-11-09T00:00:02Z", Payload: map[string]any{}}
+	if _, err := Append(ctx, db, gap, time.Now()); err == nil {
+		t.Fatal("gap accepted by the normal writer")
+	}
+	fill := contract.Event{SchemaVersion: 1, EventID: "two", RunID: "run", Source: "simulator", EventType: "workorder.completed", Sequence: 2, SimTimeMs: 1, EmittedAt: "2026-11-09T00:00:01Z", Payload: map[string]any{}}
+	if _, err := AppendProjectionRecovered(ctx, db, fill, time.Now(), Projection{}); err != nil {
+		t.Fatalf("recovery could not extend a gap: %v", err)
+	}
+	var integrity string
+	if err := db.QueryRow(ctx, `SELECT integrity FROM runs WHERE run_id='run'`).Scan(&integrity); err != nil {
+		t.Fatal(err)
+	}
+	if integrity != "gap" {
+		t.Fatalf("recovery cleared the gap before verification: %s", integrity)
+	}
+	if _, err := db.Exec(ctx, `UPDATE runs SET integrity='conflict' WHERE run_id='run'`); err != nil {
+		t.Fatal(err)
+	}
+	next := contract.Event{SchemaVersion: 1, EventID: "four", RunID: "run", Source: "simulator", EventType: "workorder.completed", Sequence: 4, SimTimeMs: 3, EmittedAt: "2026-11-09T00:00:03Z", Payload: map[string]any{}}
+	if _, err := AppendProjectionRecovered(ctx, db, next, time.Now(), Projection{}); err == nil {
+		t.Fatal("recovery thawed a conflict")
+	}
+}
+
 func TestAppendDurableRejectsTimeRegression(t *testing.T) {
 	ctx := context.Background()
 	db := testDatabase(t)

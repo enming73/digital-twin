@@ -31,6 +31,17 @@ describe('remote client', () => {
     expect(states.at(-1)?.projection?.epoch).toBe('new')
     client.stop()
   })
+  it('replaces the projection when a recovered snapshot arrives mid-stream', () => {
+    const states: RemoteClientState[] = []
+    const client = createRemoteClient({ runId: 'demo-run', onState: state => states.push(state) })
+    client.start(); Socket.sockets[0].onopen?.(); Socket.sockets[0].message({ type: 'snapshot', epoch: 'epoch', revision: 0, snapshot: snap })
+    const next = { ...snap, epoch: 'epoch-r7', revision: 5, lastSequence: 5, integrity: 'complete', terminalVerified: true }
+    Socket.sockets[0].message({ type: 'snapshot', epoch: 'epoch-r7', revision: 5, snapshot: next })
+    expect(states.at(-1)?.connection).toBe('connected')
+    expect(states.at(-1)?.projection?.epoch).toBe('epoch-r7')
+    expect(states.at(-1)?.snapshotVersion).toBe(2)
+    client.stop()
+  })
   it('marks an inactive connection stale without changing integrity and cancels retries on stop', () => {
     const states: RemoteClientState[] = []
     const client = createRemoteClient({ runId: 'demo-run', onState: state => states.push(state) })
