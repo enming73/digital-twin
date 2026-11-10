@@ -1,0 +1,4 @@
+services:
+  simulator:
+    # A paced run; a 100000x burst exceeded the broker's bounded subscriber queue.
+    command: ["run", "--scenario", "/scenarios/w6-1000.json", "--run-id", "${W6_RUN_ID:-demo-run}", "--seed", "2026", "--speed", "20", "--mqtt-url", "tcp://mosquitto:1883"]

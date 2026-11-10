@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: smt_twin
+      POSTGRES_USER: smt_demo
+      POSTGRES_PASSWORD: local-demo-only
+    volumes:
+      - w6_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smt_demo -d smt_twin"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  backend:
+    stop_grace_period: 30s
+    environment:
+      DATABASE_URL: postgres://smt_demo:local-demo-only@postgres:5432/smt_twin?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  w6_postgres:

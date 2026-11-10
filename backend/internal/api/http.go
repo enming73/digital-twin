@@ -1,14 +1,20 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"smt-digital-twin/backend/internal/ingest"
+	"smt-digital-twin/backend/internal/persistence"
+	"smt-digital-twin/backend/internal/replay"
 	"smt-digital-twin/backend/internal/twin"
 )
 
@@ -38,11 +44,89 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 func NewHandler(store *twin.Store, consumer *ingest.Consumer) http.Handler {
+	return NewHandlerWithReadiness(store, consumer, nil)
+}
+
+func NewHandlerWithReadiness(store *twin.Store, consumer *ingest.Consumer, readiness func(context.Context) error) http.Handler {
+	return NewHandlerWithHistory(store, consumer, readiness, nil)
+}
+
+type History interface {
+	Replay(context.Context, string, int64) (replay.HistoricalSnapshot, error)
+	Events(context.Context, string, int64, int64, int, int) ([]persistence.StoredEvent, error)
+}
+
+func NewHandlerWithHistory(store *twin.Store, consumer *ingest.Consumer, readiness func(context.Context) error, history History) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/metrics", func(w http.ResponseWriter, r *http.Request) {
+		var mem runtime.MemStats
+		runtime.ReadMemStats(&mem)
+		writeJSON(w, struct {
+			twin.Metrics
+			GoMemoryBytes uint64 `json:"goMemoryBytes"`
+		}{store.Metrics(), mem.Alloc})
+	})
+	if history != nil {
+		writeHistoryError := func(w http.ResponseWriter, err error) {
+			if errors.Is(err, persistence.ErrRunNotFound) {
+				http.Error(w, "run not found", http.StatusNotFound)
+				return
+			}
+			if errors.Is(err, persistence.ErrUnsupportedVersion) {
+				http.Error(w, "unsupported event version", http.StatusUnprocessableEntity)
+				return
+			}
+			http.Error(w, "historical data unavailable", http.StatusServiceUnavailable)
+		}
+		mux.HandleFunc("GET /api/runs/{id}/replay", func(w http.ResponseWriter, r *http.Request) {
+			at, err := strconv.ParseInt(r.URL.Query().Get("simTimeMs"), 10, 64)
+			if err != nil || at < 0 {
+				http.Error(w, "invalid simulated time", http.StatusBadRequest)
+				return
+			}
+			result, err := history.Replay(r.Context(), r.PathValue("id"), at)
+			if err != nil {
+				writeHistoryError(w, err)
+				return
+			}
+			writeJSON(w, result)
+		})
+		mux.HandleFunc("GET /api/runs/{id}/events", func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			from, e1 := strconv.ParseInt(q.Get("fromSimTimeMs"), 10, 64)
+			to, e2 := strconv.ParseInt(q.Get("toSimTimeMs"), 10, 64)
+			after, limit := int64(0), int64(100)
+			var e3, e4 error
+			if q.Has("afterSequence") {
+				after, e3 = strconv.ParseInt(q.Get("afterSequence"), 10, 32)
+			}
+			if q.Has("limit") {
+				limit, e4 = strconv.ParseInt(q.Get("limit"), 10, 32)
+			}
+			if e1 != nil || e2 != nil || e3 != nil || e4 != nil || from < 0 || to < from || after < 0 || limit < 1 || limit > 1000 {
+				http.Error(w, "invalid event range", http.StatusBadRequest)
+				return
+			}
+			result, err := history.Events(r.Context(), r.PathValue("id"), from, to, int(after), int(limit))
+			if err != nil {
+				writeHistoryError(w, err)
+				return
+			}
+			writeJSON(w, result)
+		})
+	}
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		h := consumer.Health()
 		w.Header().Set("Content-Type", "application/json")
-		if !h.Connected || !h.Subscribed {
+		ready := h.Connected && h.Subscribed
+		if readiness != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			if err := readiness(ctx); err != nil {
+				ready = false
+			}
+			cancel()
+		}
+		if !ready {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 		writeJSON(w, h)

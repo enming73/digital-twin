@@ -1,5 +1,23 @@
 # SMT Digital Twin Studio
 
+## W6 persistence (in progress; not accepted)
+
+The optional W6 overlay starts PostgreSQL and connects the backend to it:
+
+```sh
+npm ci
+npm run build
+docker compose -p smt-w6 -f compose.w2.yml -f compose.w3.yml -f compose.w4.yml -f compose.w6.yml up --build
+```
+
+Open `http://127.0.0.1:4174/` and select the remote source. PostgreSQL uses a named Docker volume and local-demo-only credentials; the database has no host port. To stop the project without deleting its data, use the same `-p` and four `-f` arguments with `stop`. A subsequent `up` reuses the run and its event history. The simulator must use a **new run ID for each new run**; rerunning a completed publisher with the same ID is not a new production run. Deleting the named volume permanently deletes W6 data; do not remove it unless deliberately resetting the database.
+
+The experimental read-only historical API is `GET /api/runs/{id}/replay?simTimeMs=5000`; it includes every committed event at or before the requested simulated time. `GET /api/runs/{id}/events?fromSimTimeMs=0&toSimTimeMs=5000&afterSequence=0&limit=100` returns an inclusive time range ordered by sequence, with limits from 1 to 1000. In the remote view, enter simulated milliseconds under **HISTORY / REMOTE**, select **Seek history**, and use **Return to live** to display the latest live snapshot. While viewing history, the live MES trace is hidden rather than presented as a historical trace. Checkpoints are written every 500 events and after the consumer stops during clean shutdown; only the three newest are retained. A valid checkpoint is checked against the stored prefix and used for restart and seek; an invalid or incompatible checkpoint falls back to full event replay. On the 1000-board test run, checkpoint restore took 0–2 s versus 58 s for full replay. Times beyond the last stored event return the last known state, not proof that the run ended.
+
+This is incomplete experimental work, not W6 acceptance. The backend restores committed events and trace data after restart, but a disconnect or missing MQTT tail can leave events absent; `uncertain` must not be read as complete. The publisher has no durable outbox, and MQTT QoS 1 or publisher acknowledgements do not prove end-to-end delivery. Automated gap repair, high-load 1000-board acceptance, production security and representative performance measurements remain outstanding. A 100000× burst exceeded the bounded broker queue and failed the 1000-board test; see `docs/W6_REPORT.md`. PostgreSQL unavailability stops durable ingestion rather than acknowledging an uncommitted event. The default browser-only demo still works without this stack.
+
+For a separately named 20× paced 1000-board measurement, free local ports 1883/8080 and run `bash scripts/w6-load.sh [project] [run-id]`. It defaults to `demo-run`; pass a fresh run ID for each new run, because a new publisher reusing a stored run ID freezes that run as a conflict. The script prints the work-order response, event count, latency percentiles and a single backend memory sample. It stops only its own containers and **retains** its named database volume. Its single memory sample is not peak RSS; a reconciled count does not prove that no source tail is missing.
+
 ## W5 mock MES traceability (SIMULATED, experimental)
 
 With the optional W4 stack below running, select the remote source and use **Mock MES · read only** to look up a board (for example `board-1`) or work order (`work-order-1`). Select an active PCB in the scene to fill the board search. Results are point-in-time: search again to refresh. A completed PCB remains searchable until the backend restarts. The response revision and integrity belong to the query and can differ from the current WebSocket projection. For example:

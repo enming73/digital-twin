@@ -22,10 +22,37 @@ type Consumer struct {
 	store      *twin.Store
 	health     Health
 	generation uint64
+	durable    bool
 }
 
 func NewConsumer(store *twin.Store) *Consumer { return &Consumer{store: store} }
-func (c *Consumer) Health() Health            { c.mu.Lock(); defer c.mu.Unlock(); return c.health }
+
+// NewDurableConsumer acknowledges MQTT messages only after Store.Apply commits.
+func NewDurableConsumer(store *twin.Store) *Consumer { return &Consumer{store: store, durable: true} }
+
+func (c *Consumer) processMessage(topic string, payload []byte, ack func()) error {
+	event, err := contract.DecodeAndValidate(topic, payload)
+	if err != nil {
+		c.store.MarkUncertain("invalid MQTT message")
+		return fmt.Errorf("reject MQTT message: %w", err)
+	}
+	if !c.store.Knows(event.RunID) {
+		// The wildcard subscription sees other runs; discard without stopping.
+		log.Printf("ignore event for unregistered run %s", event.RunID)
+		if ack != nil {
+			ack()
+		}
+		return nil
+	}
+	if _, err = c.store.Apply(event, time.Now()); err != nil {
+		return fmt.Errorf("reject event %s/%s: %w", event.RunID, event.EventID, err)
+	}
+	if ack != nil {
+		ack()
+	}
+	return nil
+}
+func (c *Consumer) Health() Health { c.mu.Lock(); defer c.mu.Unlock(); return c.health }
 func (c *Consumer) Connected() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -72,18 +99,27 @@ func Start(ctx context.Context, brokerURL string, store *twin.Store) error {
 }
 func (c *Consumer) Run(ctx context.Context, brokerURL string) error {
 	opts := mqtt.NewClientOptions().AddBroker(brokerURL).SetClientID(fmt.Sprintf("twin-%d", time.Now().UnixNano())).SetAutoReconnect(true).SetConnectRetry(true).SetConnectRetryInterval(250 * time.Millisecond).SetOrderMatters(true)
+	if c.durable {
+		opts.SetAutoAckDisabled(true)
+	}
+	failures := make(chan error, 1)
 	opts.SetConnectionLostHandler(func(_ mqtt.Client, err error) { c.Disconnected("broker disconnected: " + err.Error()) })
 	opts.SetOnConnectHandler(func(client mqtt.Client) {
 		generation := c.Connected()
 		token := client.SubscribeMultiple(map[string]byte{"demo/smt/+/machines/+/events": 1, "demo/smt/+/line/events": 1}, func(_ mqtt.Client, msg mqtt.Message) {
-			event, err := contract.DecodeAndValidate(msg.Topic(), msg.Payload())
-			if err != nil {
-				log.Printf("reject MQTT message: %v", err)
-				c.store.MarkUncertain("invalid MQTT message")
-				return
+			var ack func()
+			if c.durable {
+				ack = msg.Ack
 			}
-			if _, err = c.store.Apply(event, time.Now()); err != nil {
-				log.Printf("reject event %s/%s: %v", event.RunID, event.EventID, err)
+			if err := c.processMessage(msg.Topic(), msg.Payload(), ack); err != nil {
+				log.Print(err)
+				if c.durable {
+					c.Disconnected("durable ingestion stopped: " + err.Error())
+					select {
+					case failures <- err:
+					default:
+					}
+				}
 			}
 		})
 		if !token.WaitTimeout(10*time.Second) || token.Error() != nil {
@@ -105,7 +141,12 @@ func (c *Consumer) Run(ctx context.Context, brokerURL string) error {
 	if err := token.Error(); err != nil {
 		return err
 	}
-	<-ctx.Done()
-	client.Disconnect(250)
-	return nil
+	select {
+	case <-ctx.Done():
+		client.Disconnect(250)
+		return nil
+	case err := <-failures:
+		client.Disconnect(0)
+		return err
+	}
 }
