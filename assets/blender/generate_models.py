@@ -7,7 +7,11 @@ No third-party reference geometry, branding, or external textures are used.
 Anchor node names are a contract with src/data/anchors.ts; keep them stable.
 """
 from pathlib import Path
+import argparse
+import math
+import sys
 import bpy
+from mathutils import Vector
 
 ROOT = Path(__file__).resolve().parents[2]
 KINDS = ['loader', 'printer', 'spi', 'mounter', 'reflow', 'aoi', 'unloader']
@@ -55,7 +59,7 @@ def reset():
     bpy.ops.object.delete(use_global=False)
 
 
-def shell(mats):
+def shell(mats, kind):
     """Shared cabinet, conveyor and signal tower: the same visual language for every station."""
     shell_mat, trim, glass, metal, amber, plaque = mats
     cabinet = group('Cabinet')
@@ -69,18 +73,22 @@ def shell(mats):
         box(f'Service door {side}', (x, .56, .925), (1.10, .66, .035), shell_mat, cabinet, .006)
         box(f'Door hinge {side}', (x * 1.78, .56, .95), (.05, .10, .02), trim, cabinet, .002)
         box(f'Door latch {side}', (x * .38, .60, .95), (.05, .16, .025), trim, cabinet, .003)
-    box('Upper housing', (0, 1.48, 0), (2.48, .82, 1.76), shell_mat, cabinet)
-    box('Front window frame', (0, 1.55, .90), (1.84, .49, .05), trim, cabinet)
-    box('Front safety glazing', (0, 1.55, .936), (1.70, .37, .022), glass, cabinet, .004)
-    box('Control bezel', (.98, 1.56, .93), (.27, .34, .055), trim, cabinet)
-    box('Control display', (.98, 1.60, .965), (.19, .16, .018), glass, cabinet, .003)
-    box('Upper aluminium sill', (0, 1.18, .93), (2.32, .07, .08), metal, cabinet)
-    for x in (-1.07, 1.07):
-        box('Corner column', (x, 1.55, .91), (.10, .67, .09), metal, cabinet)
+    if kind == 'mounter':
+        mounter_enclosure(mats, cabinet)
+    else:
+        box('Upper housing', (0, 1.48, 0), (2.48, .82, 1.76), shell_mat, cabinet)
+        box('Front window frame', (0, 1.55, .90), (1.84, .49, .05), trim, cabinet)
+        box('Front safety glazing', (0, 1.55, .936), (1.70, .37, .022), glass, cabinet, .004)
+        box('Control bezel', (.98, 1.56, .93), (.27, .34, .055), trim, cabinet)
+        box('Control display', (.98, 1.60, .965), (.19, .16, .018), glass, cabinet, .003)
+        box('Upper aluminium sill', (0, 1.18, .93), (2.32, .07, .08), metal, cabinet)
+        for x in (-1.07, 1.07):
+            box('Corner column', (x, 1.55, .91), (.10, .67, .09), metal, cabinet)
     for x in (-.55, .55):
         box('Roof vent', (x, 1.892, -.28), (.62, .006, .10), trim, cabinet, .001)
     box('Nameplate', (0, .30, .945), (.58, .11, .018), plaque, cabinet, .002)
-    box('Warning plaque', (-.86, 1.52, .958), (.17, .17, .012), plaque, cabinet, .002)
+    if kind != 'mounter':
+        box('Warning plaque', (-.86, 1.52, .958), (.17, .17, .012), plaque, cabinet, .002)
 
     box('Conveyor bed', (0, 1.01, 0), (3.13, .12, .72), trim, conveyor)
     box('Conveyor belt', (0, 1.075, 0), (3.05, .012, .52), trim, conveyor, .001)
@@ -92,6 +100,134 @@ def shell(mats):
     box('Tower cap', (1.01, 2.26, -.65), (.14, .03, .14), trim, tower, .002)
 
     group('PCB_Anchor').location = (0, -.12, 1.08)
+
+
+def round_button(name, position, radius, depth, mat, parent):
+    """Cylinder facing the operator (+scene Z)."""
+    x, y, z = position
+    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=radius, depth=depth,
+                                      location=(x, -z, y), rotation=(math.pi / 2, 0, 0))
+    obj = bpy.context.object
+    obj.name, obj.parent = name, parent
+    obj.data.materials.append(mat)
+    mod = obj.modifiers.new('Button rim', 'BEVEL')
+    mod.width, mod.segments = .002, 2
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+    return obj
+
+
+def panel_text(body, position, size, mat, parent):
+    x, y, z = position
+    curve = bpy.data.curves.new('Panel lettering', 'FONT')
+    curve.body, curve.size, curve.align_x = body, size, 'CENTER'
+    curve.extrude = 0
+    obj = bpy.data.objects.new(body, curve)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.location, obj.rotation_euler = (x, -z, y), (math.pi / 2, 0, 0)
+    obj.parent = parent
+    curve.materials.append(mat)
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.convert(target='MESH')
+
+
+def mounter_enclosure(mats, cabinet):
+    paint, trim, _, metal, _, white = mats
+    rubber = material('Mounter rubber seals', (.018, .024, .022), 0, .85)
+    glass = material('Mounter safety glass', (.20, .29, .27), 0, .24)
+    glass.diffuse_color = (.20, .29, .27, .20)
+    glass.node_tree.nodes.get('Principled BSDF').inputs['Alpha'].default_value = .20
+    glass.surface_render_method = 'BLENDED'
+    screen = material('Mounter HMI background', (.016, .041, .046), 0, .48)
+    ink = material('Mounter HMI ink', (.36, .68, .57), 0, .65)
+    red = material('Mounter stop red', (.62, .025, .012), 0, .40)
+    yellow = material('Mounter stop collar', (.90, .61, .015), 0, .60)
+    green = material('Mounter start green', (.025, .36, .11), 0, .42)
+
+    # Hollow enclosure: a real sight line through the front, not a window on a solid box.
+    box('Enclosure roof', (0, 1.86, 0), (2.48, .07, 1.90), paint, cabinet)
+    box('Enclosure back', (0, 1.46, -.87), (2.48, .73, .06), paint, cabinet)
+    for x in (-1.205, 1.205):
+        box('Enclosure side', (x, 1.46, 0), (.07, .73, 1.80), paint, cabinet)
+    box('Window sill', (0, 1.15, .96), (2.46, .08, .10), metal, cabinet)
+
+    for side, x in (('L', -.685), ('R', .245)):
+        door = group(f'Vision_Door_{side}', cabinet)
+        # Framed opening 0.82 x 0.57 m, with an unbroken seal just inside the frame.
+        for dx in (-.446, .446):
+            box('Door upright', (x + dx, 1.51, .97), (.048, .66, .065), trim, door, .004)
+            box('Seal upright', (x + dx * .93, 1.51, .98), (.014, .58, .018), rubber, door, .002)
+        for y in (1.20, 1.82):
+            box('Door crosspiece', (x, y, .97), (.90, .04, .065), trim, door, .004)
+            box('Seal crosspiece', (x, y + (.028 if y < 1.5 else -.028), .98), (.83, .012, .018), rubber, door, .002)
+        box('Safety glazing', (x, 1.51, .974), (.824, .572, .008), glass, door, 0)
+        edge = x + (-.45 if side == 'L' else .45)
+        for y in (1.30, 1.71):
+            box('Hinge leaves', (edge, y, 1.017), (.075, .064, .014), metal, door, .003)
+            box('Hinge barrel', (edge, y, 1.03), (.025, .078, .025), trim, door, .004)
+        handle_x = x + (.36 if side == 'L' else -.36)
+        for y in (1.41, 1.58):
+            box('Handle foot', (handle_x, y, 1.035), (.026, .027, .06), trim, door, .004)
+        box('Raised vertical handle', (handle_x, 1.495, 1.072), (.023, .19, .026), metal, door, .006)
+
+    panel = group('Operator_Panel', cabinet)
+    box('Operator housing', (.96, 1.51, .96), (.40, .66, .12), paint, panel, .012)
+    display = group('HMI_Display', panel)
+    box('HMI gasket', (.96, 1.65, 1.027), (.327, .275, .012), rubber, display, .008)
+    box('HMI bezel', (.96, 1.65, 1.041), (.304, .253, .026), trim, display, .009)
+    box('HMI screen', (.96, 1.65, 1.056), (.260, .204, .005), screen, display, .002)
+    panel_text('SIMULATED', (.96, 1.715, 1.061), .027, white, display)
+    for i, width in enumerate((.19, .13, .16)):
+        box('HMI status row', (.96, 1.676 - i * .035, 1.061), (width, .009, .002), ink, display, 0)
+    panel_text('SMT / DEMO', (.96, 1.563, 1.061), .019, white, display)
+    for x, label, mat in ((.85, 'START', green), (.96, 'STOP', trim), (1.07, 'RESET', white)):
+        round_button('Button socket', (x, 1.44, 1.034), .029, .022, metal, panel)
+        round_button('Button cap', (x, 1.44, 1.049), .022, .018, mat, panel)
+        panel_text(label, (x, 1.482, 1.025), .018, trim, panel)
+    stop = group('Emergency_Stop', panel)
+    round_button('Yellow collar', (.96, 1.295, 1.03), .054, .012, yellow, stop)
+    round_button('Stop stem', (.96, 1.295, 1.055), .023, .044, trim, stop)
+    round_button('Mushroom stop', (.96, 1.295, 1.084), .037, .023, red, stop)
+    panel_text('EMERGENCY', (.96, 1.218, 1.025), .019, trim, panel)
+
+
+def consolidate_mounter():
+    """Join static subparts within each parent, keeping glass and motion anchors separate."""
+    buckets = {}
+    for obj in list(bpy.context.scene.objects):
+        if obj.type == 'MESH':
+            is_glass = any(mat.name == 'Mounter safety glass' for mat in obj.data.materials)
+            buckets.setdefault((obj.parent, is_glass), []).append(obj)
+    for (parent, is_glass), objects in buckets.items():
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in objects:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = objects[0]
+        if len(objects) > 1:
+            bpy.ops.object.join()
+        objects[0].name = f'{parent.name} {"glazing" if is_glass else "geometry"}'
+
+
+def validate_mounter_clearance():
+    """Check world-space envelope at all travel extrema before exporting."""
+    bpy.context.view_layer.update()
+    limits = {'Gantry_X': (.45, 0), 'Gantry_Y': (.45, 0),
+              'Placement_Head': (.45, -.12), 'Feeders': (0, .01)}
+    for name, (travel, lift) in limits.items():
+        anchor = bpy.data.objects[name]
+        for obj in anchor.children_recursive:
+            if obj.type != 'MESH':
+                continue
+            for corner in obj.bound_box:
+                point = obj.matrix_world @ Vector(corner)
+                x, y, z = point.x, point.z, -point.y
+                for dx in (-travel, travel):
+                    for dy in (0, lift):
+                        assert -1.17 < x + dx < 1.17, f'{name} crosses a side wall'
+                        assert 1.09 < y + dy < 1.82, f'{name} crosses roof/conveyor'
+                        assert -.83 < z < .95, f'{name} crosses back/door'
+    print('Mounter motion envelope: clear of enclosure at all extrema')
 
 
 def printer_parts(mats):
@@ -112,16 +248,16 @@ def printer_parts(mats):
 def mounter_parts(mats):
     _, trim, _, metal, _, _ = mats
     gantry = group('Gantry_X')
-    box('Gantry beam', (0, 1.66, .95), (1.50, .09, .08), metal, gantry)
+    box('Gantry beam', (0, 1.66, .50), (1.32, .09, .08), metal, gantry)
     rail = group('Gantry_Y')
-    box('Gantry rail', (0, 1.50, .95), (.06, .42, .06), metal, rail, .004)
+    box('Gantry rail', (0, 1.50, .57), (.06, .42, .06), metal, rail, .004)
     head = group('Placement_Head')
-    box('Head body', (0, 1.54, .95), (.20, .28, .12), trim, head)
-    box('Head nozzle', (0, 1.36, .95), (.05, .12, .05), metal, head, .003)
+    box('Head body', (0, 1.60, .65), (.20, .28, .12), trim, head)
+    box('Head nozzle', (0, 1.42, .65), (.05, .12, .05), metal, head, .003)
     feeders = group('Feeders')
-    box('Feeder rack', (0, 1.28, 1.00), (1.50, .10, .16), trim, feeders)
+    box('Feeder rack', (0, 1.23, .76), (1.65, .10, .16), trim, feeders)
     for i in range(8):
-        box('Feeder slot', (-.61 + .20 * i, 1.33, 1.02), (.09, .05, .10), metal, feeders, .002)
+        box('Feeder slot', (-.70 + .20 * i, 1.30, .76), (.09, .05, .10), metal, feeders, .002)
 
 
 def camera_parts(mats):
@@ -169,10 +305,13 @@ def build(kind):
         material('Safety amber', (.65, .35, .10), .20, .48),
         material('Plaque white', (.82, .84, .80), .10, .62),
     )
-    shell(mats)
+    shell(mats, kind)
     {'printer': printer_parts, 'mounter': mounter_parts, 'spi': camera_parts,
      'aoi': camera_parts, 'reflow': reflow_parts, 'loader': loader_parts,
-     'unloader': loader_parts}[kind](mats)
+      'unloader': loader_parts}[kind](mats)
+    if kind == 'mounter':
+        validate_mounter_clearance()
+        consolidate_mounter()
     bpy.context.scene['provenance'] = f'Original generic conceptual SMT machine ({kind}); no proprietary geometry.'
     source = ROOT / 'assets' / 'blender' / f'{kind}.blend'
     output = ROOT / 'public' / 'models' / f'{kind}.glb'
@@ -181,5 +320,9 @@ def build(kind):
     bpy.ops.export_scene.gltf(filepath=str(output), export_format='GLB', export_yup=True, export_apply=True)
 
 
-for model in KINDS:
-    build(model)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--kind', choices=KINDS)
+    args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
+    for model in ([args.kind] if args.kind else KINDS):
+        build(model)
