@@ -198,8 +198,8 @@ function Boards({ scene, selectedBoard, onSelectBoard }: { scene: SceneModel; se
 
 export default function Factory({ selected, onSelect, resetKey, scene, selectedBoard, onSelectBoard }: { selected: Station | null; onSelect: (station: Station) => void; resetKey: number; scene: SceneModel; selectedBoard: string | null; onSelectBoard: (id: string) => void }) {
   const boardStation = scene.boards.find(board => board.id === selectedBoard)?.stationId
-  return <Canvas shadows dpr={[1, 1.5]} gl={{ alpha: true, toneMappingExposure: EXPOSURE }} camera={{ position: overviewCamera.position, fov: 40 }} fallback={<div className="canvas-fallback">3D view unavailable. WebGL is required to view the factory.</div>}>
-    <fog attach="fog" args={['#e2e9e2', 40, 100]} />
+  return <Canvas shadows dpr={[1, 1.5]} gl={{ toneMappingExposure: EXPOSURE }} camera={{ position: overviewCamera.position, fov: 40 }} fallback={<div className="canvas-fallback">3D view unavailable. WebGL is required to view the factory.</div>}>
+    <color attach="background" args={['#dde4dd']} /><fog attach="fog" args={['#dde4dd', 45, 110]} />
     <LightRig />
     <Floor />
     {stations.map(station => <Machine key={station.id} station={station} machine={scene.stations[station.id]?.localMotion ?? null} status={scene.stations[station.id]?.state ?? 'UNKNOWN'} time={scene.simTimeMs} selected={selected?.id === station.id || boardStation === station.id} onSelect={() => onSelect(station)} />)}
