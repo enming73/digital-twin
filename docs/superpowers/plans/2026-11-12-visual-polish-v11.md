@@ -93,7 +93,7 @@ Each anchor is a parent group at its authored rest pose. The runtime stores that
 **Interfaces:**
 - Produces: `export const commonAnchors: readonly string[]`, `export const stationAnchors: Readonly<Record<StationId, readonly string[]>>`, `export const artifactNames: readonly string[]`.
 
-- [ ] **Step 1: Write the contract data**
+- [x] **Step 1: Write the contract data**
 
 ```ts
 // src/data/anchors.ts
@@ -111,20 +111,20 @@ export const stationAnchors: Readonly<Record<StationId, readonly string[]>> = {
 }
 ```
 
-- [ ] **Step 2: Write the failing asset test**
+- [x] **Step 2: Write the failing asset test**
 
 Replace `tests/unit/assets.test.ts` with a loop over `artifactNames` that asserts, per model: `.blend` magic `BLENDER`; GLB magic `0x46546c67` and version 2; size under 2 MiB; every name in `stationAnchors[name]` present in `json.nodes`; no duplicate node names; `json.meshes.length` between 6 and 40.
 
-- [ ] **Step 3: Run it to confirm it fails**
+- [x] **Step 3: Run it to confirm it fails**
 
 Run: `npx vitest run tests/unit/assets.test.ts`
 Expected: FAIL — `ENOENT` for `assets/blender/loader.blend`.
 
-- [ ] **Step 4: Rewrite `generate_models.py`**
+- [x] **Step 4: Rewrite `generate_models.py`**
 
 Structure: `material(name, color, metallic, roughness)`; `group(name, parent)`; `box(...)` with 2-segment bevel; `shell(kind)` for the shared cabinet, plinth, service doors with seams and hinges, control bezel, conveyor bed and rails, signal mast and its own-material lens, and the `PCB_Anchor` group placed at the fixed board line `y = 1.08` so authoring agrees with the instanced PCB mesh; `parts(kind)` adding the per-kind anchors from the contract table — feeder rack and 12 feeder slots for `mounter`, stencil frame, squeegee carriage and clamps for `printer`, camera bridge and head for `spi`/`aoi`, tunnel walls, three zone shutters and a cleated belt for `reflow`, magazine stack, lift platform and pusher for `loader`/`unloader`. Warning plaques and nameplates are flat bevelled boxes in a dedicated material, no text. Material vocabulary: powder-coated warm grey, dark graphite, satin aluminium, smoked glazing, safety amber, plaque white.
 
-- [ ] **Step 5: Generate the seven assets**
+- [x] **Step 5: Generate the seven assets**
 
 ```bash
 cd /mnt/e/blender-5.2.3-windows-x64 && ./blender.exe -b --factory-startup \
@@ -132,12 +132,12 @@ cd /mnt/e/blender-5.2.3-windows-x64 && ./blender.exe -b --factory-startup \
 ```
 Expected: seven `Saved as` + `Finished glTF 2.0 export` pairs, no traceback.
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 Run: `npx vitest run tests/unit/assets.test.ts`
 Expected: PASS for all seven models.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/data/anchors.ts assets/blender public/models tests/unit/assets.test.ts
@@ -156,25 +156,25 @@ git commit -m "feat: generate all seven stations from one Blender pipeline"
 - Consumes: `artifactNames`, `stationAnchors` from Task 1.
 - Produces: `AssetShell({ kind, selected })`; the procedural shell remains only on the load-failure path.
 
-- [ ] **Step 1: Write the failing browser test**
+- [x] **Step 1: Write the failing browser test**
 
 In `tests/e2e/models.spec.ts` add a test that loads `/`, collects successful `/models/*.glb` responses, and asserts all seven `artifactNames` were fetched; add a second test that routes `**/models/loader.glb` to an invalid body, clicks the Loader station, and asserts the canvas stays visible and the station detail heading appears.
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `npx playwright test tests/e2e/models.spec.ts`
 Expected: FAIL — only `printer.glb` and `mounter.glb` are requested.
 
-- [ ] **Step 3: Load all seven**
+- [x] **Step 3: Load all seven**
 
 `Machine` chooses `AssetShell` for every station instead of branching on `printer`/`mounter`; `AssetShell` fetches `${import.meta.env.BASE_URL}models/${kind}.glb` as today, keeps a per-instance material/geometry disposal on unmount, and renders `ProceduralShell` only while loading or after a failure. Remove the now-unused per-kind conditional.
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `npx playwright test tests/e2e/models.spec.ts`
 Expected: PASS, both tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/scene/Factory.tsx tests/e2e/models.spec.ts
@@ -194,34 +194,34 @@ git commit -m "feat: load all seven station models with procedural fallback"
 - Consumes: `machineMotion(machine, simTimeMs) → { cycle: number; sweep: number; lift: number }`; `stationAnchors` from Task 1.
 - Produces: `captureAnchors(root: THREE.Object3D, names: readonly string[]): Map<string, THREE.Vector3>`, `anchorOffsets(kind: string, pose: MechanismPose): Record<string, Partial<Record<'x' | 'y' | 'z', number>>>`, `applyAnchorOffsets(root, rest, offsets): void`. `MechanismPose = { cycle: number; sweep: number; lift: number }` is declared in `src/scene/motion.ts` as `machineMotion`'s return type.
 
-- [ ] **Step 1: Write the failing unit test**
+- [x] **Step 1: Write the failing unit test**
 
 Three assertions on a hand-built `THREE.Group` tree: `captureAnchors` records every requested anchor and ignores unknown names; `anchorOffsets` stays inside the authored bounds for `cycle` 0, 0.5, 1 (mounter `Gantry_X |x| ≤ 0.45`, `Placement_Head |y| ≤ 0.12`, reflow `Belt |x| ≤ 0.5`); applying offsets then an empty record restores the captured rest positions exactly.
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `npx vitest run tests/unit/anchors.test.ts`
 Expected: FAIL — cannot resolve `src/scene/anchors`.
 
-- [ ] **Step 3: Implement the module**
+- [x] **Step 3: Implement the module**
 
 Offsets per kind, copied from the constants the current overlay boxes use: mounter `Gantry_X x = sweep * 0.45`, `Placement_Head y = -lift * 0.12`, `Feeders y = lift * 0.01`; printer `Squeegee x = sweep * 0.48`, `Clamp y = lift * 0.02`; spi/aoi `Camera_Bridge x = sweep * 0.57`, `Camera_Head y = -lift * 0.05`; reflow `Belt x = ((cycle * 0.5) % 0.25)`, `Zone_Shutter y = lift * 0.03`; loader/unloader `Lift y = lift * 0.18`, `Pusher z = sweep * 0.1`. Unknown kinds return `{}`. `applyAnchorOffsets` writes `rest + offset` and never accumulates, so repeated frames cannot drift.
 
-- [ ] **Step 4: Run it to verify it passes**
+- [x] **Step 4: Run it to verify it passes**
 
 Run: `npx vitest run tests/unit/anchors.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Wire it into the scene**
+- [x] **Step 5: Wire it into the scene**
 
 `AssetShell` captures anchors once per loaded GLB (keyed by station id), then a `useFrame` callback applies offsets from `machineMotion(machine, scene.simTimeMs)` when a snapshot exists and an empty pose otherwise. Delete the overlay `ProcessAssembly` call for GLB stations; keep `ProcessAssembly` rendering only alongside `ProceduralShell` so the failure path still shows something moving. Remove `ProcessAssembly`'s `printer`/`mounter` branches if they become unreachable.
 
-- [ ] **Step 6: Run the scene tests**
+- [x] **Step 6: Run the scene tests**
 
 Run: `npm run typecheck && npx playwright test tests/e2e/factory.spec.ts tests/e2e/motion.spec.ts`
 Expected: PASS, no console errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/scene tests/unit/anchors.test.ts
@@ -240,34 +240,34 @@ git commit -m "feat: animate mechanism anchors from the simulation snapshot"
 **Interfaces:**
 - Produces: `CameraPreset = { position: Vec3; target: Vec3 }`, `EASE_DURATION_MS = 1200`, `easeInOutCubic(t: number): number`, `tweenProgress(elapsedMs: number, durationMs?: number): { t: number; done: boolean }`, `lerpPreset(from: CameraPreset, to: CameraPreset, t: number): CameraPreset`, and `Station.mechanismCamera: CameraPreset`.
 
-- [ ] **Step 1: Write the failing unit tests**
+- [x] **Step 1: Write the failing unit tests**
 
 `easeInOutCubic` clamps outside `[0,1]`, returns 0 at 0, 1 at 1, 0.5 at 0.5, and is monotonic across ten samples. `tweenProgress` returns `done: false` below the duration, `{ t: 1, done: true }` at and beyond it, and never returns a `t` outside `[0,1]` for negative elapsed values. `lerpPreset` returns the endpoints exactly and the midpoint componentwise. `stations.test.ts` asserts all seven stations have a `mechanismCamera`, every mechanism target differs from the overview target, `target[1]` lies in `[0.8, 1.9]`, and every preset is distinct from its station's `camera`.
 
-- [ ] **Step 2: Run them to confirm they fail**
+- [x] **Step 2: Run them to confirm they fail**
 
 Run: `npx vitest run tests/unit/camera-tween.test.ts tests/unit/stations.test.ts`
 Expected: FAIL — module missing and `mechanismCamera` undefined.
 
-- [ ] **Step 3: Implement the tween module and the presets**
+- [x] **Step 3: Implement the tween module and the presets**
 
 `easeInOutCubic(t) = t < 0.5 ? 4t³ : 1 - (-2t + 2)³ / 2` after clamping. `tweenProgress(elapsedMs, durationMs = EASE_DURATION_MS)` returns `t = min(1, max(0, elapsedMs / durationMs))` and `done = elapsedMs >= durationMs`. `lerpPreset` interpolates the six numbers. `stations.ts` gains `mechanismCamera` per station: same station `x` offset, `y ≈ 1.55`, `z ≈ 2.9`, target `[x, 1.55, 0.95]` aiming at the process window, with `spi`/`aoi` slightly higher and `reflow` aimed at the tunnel mouth.
 
-- [ ] **Step 4: Run them to verify they pass**
+- [x] **Step 4: Run them to verify they pass**
 
 Run: `npx vitest run tests/unit/camera-tween.test.ts tests/unit/stations.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Replace the instant jump in `CameraRig`**
+- [x] **Step 5: Replace the instant jump in `CameraRig`**
 
 On station/reset change, capture the current `camera.position` and `controls.target` as the tween start and the destination preset as the end. Accumulate elapsed time and call `tweenProgress` from a `useFrame` callback; apply `lerpPreset` to both position and target, then `controls.update()`. At `done`, stop and leave `OrbitControls` in charge. Subscribe to the controls' `start` event to cancel an in-flight tween so a drag never fights the animation. Reset tweens to `overviewCamera`. Guard against `NaN` when a preset repeats.
 
-- [ ] **Step 6: Verify in the browser**
+- [x] **Step 6: Verify in the browser**
 
 Run: `npx playwright test tests/e2e/factory.spec.ts tests/e2e/presentation.spec.ts`
 Expected: PASS. Capture `test-results/v11-pushin.png` after selecting `mounter`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/data/stations.ts src/scene/cameraTween.ts src/scene/Factory.tsx tests/unit
@@ -286,28 +286,28 @@ git commit -m "feat: ease camera presets onto each station's mechanism"
 **Interfaces:**
 - Produces: `signalColor(state: string): string` and `signalIntensity(state: string): number`.
 
-- [ ] **Step 1: Write the failing unit test**
+- [x] **Step 1: Write the failing unit test**
 
 `signalColor` maps `FAULT → #e14e4e`, `BLOCKED`/`STARVED → #e1a545`, `RUNNING → #53b879`, everything else (including `UNKNOWN`, `IDLE`, `null`) → `#87928c`; `signalIntensity` returns a value in `[0, 1]` for every state.
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `npx vitest run tests/unit/status.test.ts`
 Expected: FAIL — module missing.
 
-- [ ] **Step 3: Implement `status.ts` and use it in both render paths**
+- [x] **Step 3: Implement `status.ts` and use it in both render paths**
 
 Procedural shell uses `signalColor` for its tower box; GLB stations look up `Signal_Lens` after load, clone its material once, and set `color` plus `emissive`/`emissiveIntensity` from the same functions on state change. Cloned materials are disposed on unmount.
 
-- [ ] **Step 4: Fix the shadow acne and the selection affordance**
+- [x] **Step 4: Fix the shadow acne and the selection affordance**
 
 On the directional light set `shadow-bias={-0.0004}`, `shadow-normalBias={0.02}`, `shadow-mapSize={[2048, 2048]}`, and tighten `shadow-camera-{left,right,top,bottom}` to ±12/±10. Replace the faint floor plate with a thin `ringGeometry` selection ring in an emissive material at `y = 0.02`.
 
-- [ ] **Step 5: Verify no acne in the close-up**
+- [x] **Step 5: Verify no acne in the close-up**
 
 Run: `npx playwright test tests/e2e/factory.spec.ts` and capture `test-results/v11-mounter.png`. Inspect the cabinet tops for striping; re-run with `shadow-bias={-0.001}` if any remains, and record the chosen value in the task notes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/scene tests/unit/status.test.ts tests/e2e/factory.spec.ts
@@ -326,25 +326,25 @@ git commit -m "fix: remove shadow acne and drive signal lenses from station stat
 **Interfaces:**
 - Produces: `GET /api/assets` returning seven entries with `"representation": "glb"` and `"modelURL": "/models/<id>.glb"`.
 
-- [ ] **Step 1: Write the failing Go test**
+- [x] **Step 1: Write the failing Go test**
 
 In `http_test.go`, assert the endpoint returns seven assets, every `Representation` is `"glb"`, and every `ModelURL` names one of the seven files that exist in `public/models` (read via a relative path from the test).
 
-- [ ] **Step 2: Run it to confirm it fails**
+- [x] **Step 2: Run it to confirm it fails**
 
 Run: `cd backend && go test ./internal/api/ -run Assets`
 Expected: FAIL — five entries report `procedural`.
 
-- [ ] **Step 3: Update the registry and the migration**
+- [x] **Step 3: Update the registry and the migration**
 
 `assets()` marks all seven as `glb` with `/models/<id>.glb`. Add `002_v11_assets.sql` updating the five procedural rows to `glb` with their URLs, embed it as `migrations.Second`, and extend `Migrate` to apply it when the recorded version is 1, insert version 2, and reject anything above 2. Update `migrate_test.go`'s expected version.
 
-- [ ] **Step 4: Run the backend tests**
+- [x] **Step 4: Run the backend tests**
 
 Run: `cd backend && go test ./...`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
@@ -358,15 +358,15 @@ git commit -m "feat: report all seven station models from the asset registry"
 **Files:**
 - Modify: `README.md`, `docs/DECISIONS.md`
 
-- [ ] **Step 1: Document the decisions**
+- [x] **Step 1: Document the decisions**
 
 Add a "## v1.1" block to `docs/DECISIONS.md`: seven models from one pipeline, anchors are real motion nodes now, camera eases in 1.2 s, remote and replay views stay static (known limitation), shadow bias values, and that historical acceptance records were left untouched.
 
-- [ ] **Step 2: Document regeneration and the asset map**
+- [x] **Step 2: Document regeneration and the asset map**
 
 In `README.md`, add the exact Blender command from Task 1 Step 5 (noting the Windows build and the WSL path), the seven-model/anchor table, and the note that `ProceduralShell` is now only a failure fallback.
 
-- [ ] **Step 3: Run every check**
+- [x] **Step 3: Run every check**
 
 ```bash
 npm run typecheck
@@ -377,7 +377,7 @@ cd backend && go test ./...
 ```
 Expected: all pass. Paste the real output in the completion report; do not summarise a command that was not run.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md docs/DECISIONS.md
