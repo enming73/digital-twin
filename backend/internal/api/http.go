@@ -29,13 +29,8 @@ func assets() []asset {
 	ids := []string{"loader", "printer", "spi", "mounter", "reflow", "aoi", "unloader"}
 	out := make([]asset, 0, len(ids))
 	for _, id := range ids {
-		a := asset{MachineID: id, StationType: id, Representation: "procedural"}
-		if id == "printer" || id == "mounter" {
-			url := "/models/" + id + ".glb"
-			a.ModelURL = &url
-			a.Representation = "glb"
-		}
-		out = append(out, a)
+		url := "/models/" + id + ".glb"
+		out = append(out, asset{MachineID: id, StationType: id, Representation: "glb", ModelURL: &url})
 	}
 	return out
 }

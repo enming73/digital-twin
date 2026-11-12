@@ -1,7 +1,9 @@
 import type { MachineSnapshot } from '../simulation/engine'
 
+export type MechanismPose = { cycle: number; sweep: number; lift: number }
+
 /** Illustrative normalized process pose, never machine coordinates. */
-export function machineMotion(machine: MachineSnapshot, simTimeMs: number) {
+export function machineMotion(machine: MachineSnapshot, simTimeMs: number): MechanismPose {
   const elapsed = machine.startedAtMs === null ? 0 : machine.state === 'RUNNING' || machine.state === 'FAULT' && machine.remainingMs !== null
     ? Math.max(0, Math.min(machine.processTimeMs, (machine.faultAtMs ?? simTimeMs) - machine.startedAtMs))
     : machine.processTimeMs
