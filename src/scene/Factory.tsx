@@ -12,6 +12,7 @@ import { anchorOffsets, applyAnchorOffsets, captureAnchors } from './anchors'
 import { easeInOutCubic, lerpPreset, tweenProgress } from './cameraTween'
 import { signalColor, signalIntensity } from './status'
 import Floor from './Floor'
+import LightRig, { EXPOSURE } from './lighting'
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
   return <mesh name={name} position={position} castShadow receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} metalness={metal} roughness={0.57} /></mesh>
@@ -197,9 +198,9 @@ function Boards({ scene, selectedBoard, onSelectBoard }: { scene: SceneModel; se
 
 export default function Factory({ selected, onSelect, resetKey, scene, selectedBoard, onSelectBoard }: { selected: Station | null; onSelect: (station: Station) => void; resetKey: number; scene: SceneModel; selectedBoard: string | null; onSelectBoard: (id: string) => void }) {
   const boardStation = scene.boards.find(board => board.id === selectedBoard)?.stationId
-  return <Canvas shadows dpr={[1, 1.5]} camera={{ position: overviewCamera.position, fov: 40 }} fallback={<div className="canvas-fallback">3D view unavailable. WebGL is required to view the factory.</div>}>
-    <color attach="background" args={['#d9ded9']} /><fog attach="fog" args={['#d9ded9', 35, 80]} />
-    <ambientLight intensity={1.25} /><directionalLight position={[4, 12, 8]} intensity={2} castShadow shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.02} shadow-camera-left={-12} shadow-camera-right={12} shadow-camera-top={10} shadow-camera-bottom={-10} />
+  return <Canvas shadows dpr={[1, 1.5]} gl={{ alpha: true, toneMappingExposure: EXPOSURE }} camera={{ position: overviewCamera.position, fov: 40 }} fallback={<div className="canvas-fallback">3D view unavailable. WebGL is required to view the factory.</div>}>
+    <fog attach="fog" args={['#e2e9e2', 40, 100]} />
+    <LightRig />
     <Floor />
     {stations.map(station => <Machine key={station.id} station={station} machine={scene.stations[station.id]?.localMotion ?? null} status={scene.stations[station.id]?.state ?? 'UNKNOWN'} time={scene.simTimeMs} selected={selected?.id === station.id || boardStation === station.id} onSelect={() => onSelect(station)} />)}
     <Boards scene={scene} selectedBoard={selectedBoard} onSelectBoard={onSelectBoard} /><CameraRig station={selected} resetKey={resetKey} />
