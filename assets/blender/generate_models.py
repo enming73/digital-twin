@@ -85,7 +85,10 @@ def shell(mats, kind):
         for x in (-1.07, 1.07):
             box('Corner column', (x, 1.55, .91), (.10, .67, .09), metal, cabinet)
     for x in (-.55, .55):
-        box('Roof vent', (x, 1.892, -.28), (.62, .006, .10), trim, cabinet, .001)
+        if kind == 'mounter':
+            box('Roof vent', (x, 1.899, -.28), (.62, .006, .10), trim, cabinet, .001)
+        else:
+            box('Roof vent', (x, 1.892, -.28), (.62, .006, .10), trim, cabinet, .001)
     box('Nameplate', (0, .30, .945), (.58, .11, .018), plaque, cabinet, .002)
     if kind != 'mounter':
         box('Warning plaque', (-.86, 1.52, .958), (.17, .17, .012), plaque, cabinet, .002)
@@ -155,11 +158,11 @@ def mounter_enclosure(mats, cabinet):
     for side, x in (('L', -.685), ('R', .245)):
         door = group(f'Vision_Door_{side}', cabinet)
         # Framed opening 0.82 x 0.57 m, with an unbroken seal just inside the frame.
-        for dx in (-.446, .446):
+        for dx in (-.437, .437):
             box('Door upright', (x + dx, 1.51, .97), (.048, .66, .065), trim, door, .004)
             box('Seal upright', (x + dx * .93, 1.51, .98), (.014, .58, .018), rubber, door, .002)
         for y in (1.20, 1.82):
-            box('Door crosspiece', (x, y, .97), (.90, .04, .065), trim, door, .004)
+            box('Door crosspiece', (x, y, .97), (.922, .04, .065), trim, door, .004)
             box('Seal crosspiece', (x, y + (.028 if y < 1.5 else -.028), .98), (.83, .012, .018), rubber, door, .002)
         box('Safety glazing', (x, 1.51, .974), (.824, .572, .008), glass, door, 0)
         edge = x + (-.45 if side == 'L' else .45)
@@ -228,6 +231,32 @@ def validate_mounter_clearance():
                         assert 1.09 < y + dy < 1.82, f'{name} crosses roof/conveyor'
                         assert -.83 < z < .95, f'{name} crosses back/door'
     print('Mounter motion envelope: clear of enclosure at all extrema')
+
+
+def world_bounds(objects):
+    bpy.context.view_layer.update()
+    return [obj.matrix_world @ Vector(corner) for obj in objects if obj.type == 'MESH' for corner in obj.bound_box]
+
+
+def validate_door_seams():
+    """Two leaves must read as two doors: a real seam, not one merged mullion."""
+    left = bpy.data.objects['Vision_Door_L']
+    right = bpy.data.objects['Vision_Door_R']
+    left_inner = max(point.x for point in world_bounds(left.children_recursive))
+    right_inner = min(point.x for point in world_bounds(right.children_recursive))
+    gap = right_inner - left_inner
+    assert gap >= .006, f'Door leaves overlap or touch (gap {gap * 1000:.1f} mm)'
+    print(f'Door seam between leaves: {gap * 1000:.1f} mm')
+
+
+def validate_roof_vents():
+    """Vents must stand proud of the roof, not share its plane."""
+    roof_top = max(point.z for point in world_bounds([bpy.data.objects['Enclosure roof']]))
+    vents = [obj for obj in bpy.context.scene.objects if obj.name.startswith('Roof vent')]
+    assert vents, 'Mounter roof has no vents'
+    vent_top = max(point.z for point in world_bounds(vents))
+    assert vent_top > roof_top + .001, f'Roof vents are coplanar with the roof ({vent_top:.4f} vs {roof_top:.4f})'
+    print(f'Roof vents stand {(vent_top - roof_top) * 1000:.1f} mm proud of the roof')
 
 
 def printer_parts(mats):
@@ -311,6 +340,8 @@ def build(kind):
       'unloader': loader_parts}[kind](mats)
     if kind == 'mounter':
         validate_mounter_clearance()
+        validate_door_seams()
+        validate_roof_vents()
         consolidate_mounter()
     bpy.context.scene['provenance'] = f'Original generic conceptual SMT machine ({kind}); no proprietary geometry.'
     source = ROOT / 'assets' / 'blender' / f'{kind}.blend'

@@ -51,25 +51,25 @@ Success is a convincing existing-camera close-up, not exact reproduction of the 
 
 **Interfaces:** retain `build(kind)` and existing required anchor nodes. Add `shell(mats, kind)` dispatching only mounter-specific upper enclosure work; `mounter_enclosure(mats, cabinet)` creates the doors and operator assembly. Add CLI `--kind mounter` after Blender's `--`; no argument still exports all kinds.
 
-- [ ] Extend `assets.test.ts` with a mounter-only test asserting unique nodes `Vision_Door_L`, `Vision_Door_R`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop`; assert `Mounter safety glass` uses `alphaMode: 'BLEND'` with alpha strictly between 0 and 1. Existing anchors and budgets remain mandatory.
-- [ ] Run `npx vitest run tests/unit/assets.test.ts`; confirm the new sample test fails on missing detail nodes, not a tooling error.
-- [ ] Add the selective CLI entry point and implement `mounter_enclosure(mats, cabinet)`. Keep non-mounter shell construction identical. Name detail assemblies as above; use separate glazing material, physical bezel/button profiles, and converted static screen text.
-- [ ] Position `mounter_parts(mats)` behind the glazing. Add export-time mounter bounds validation in scene coordinates: at x offsets -0.45 and +0.45, head lift 0 and -0.12, and feeder lift 0 and +0.01, moving parts stay within the free enclosure space and behind the panes. Preserve conveyor height and PCB anchor.
-- [ ] Consolidate static geometry within assemblies; export only mounter using `/mnt/e/blender-5.2.3-windows-x64/blender.exe -b --factory-startup --python <Windows-path-to-script> -- --kind mounter`. Resolve the Windows path with `wslpath -w`; record the actual successful command in the report.
-- [ ] Run `npx vitest run tests/unit/assets.test.ts tests/unit/anchors.test.ts`; record pass/fail, GLB bytes and mesh count. Confirm hashes for the other six source/GLB pairs match their pre-export values.
-- [ ] Review the diff and commit only generator, sample artifacts and asset tests on an isolated sample branch.
+- [x] Extend `assets.test.ts` with a mounter-only test asserting unique nodes `Vision_Door_L`, `Vision_Door_R`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop`; assert `Mounter safety glass` uses `alphaMode: 'BLEND'` with alpha strictly between 0 and 1. Existing anchors and budgets remain mandatory.
+- [x] Run `npx vitest run tests/unit/assets.test.ts`; confirm the new sample test fails on missing detail nodes, not a tooling error.
+- [x] Add the selective CLI entry point and implement `mounter_enclosure(mats, cabinet)`. Keep non-mounter shell construction identical. Name detail assemblies as above; use separate glazing material, physical bezel/button profiles, and converted static screen text.
+- [x] Position `mounter_parts(mats)` behind the glazing. Add export-time mounter bounds validation in scene coordinates: at x offsets -0.45 and +0.45, head lift 0 and -0.12, and feeder lift 0 and +0.01, moving parts stay within the free enclosure space and behind the panes. Preserve conveyor height and PCB anchor.
+- [x] Consolidate static geometry within assemblies; export only mounter using `/mnt/e/blender-5.2.3-windows-x64/blender.exe -b --factory-startup --python <Windows-path-to-script> -- --kind mounter`. Resolve the Windows path with `wslpath -w`; record the actual successful command in the report.
+- [x] Run `npx vitest run tests/unit/assets.test.ts tests/unit/anchors.test.ts`; record pass/fail, GLB bytes and mesh count. Confirm hashes for the other six source/GLB pairs match their pre-export values.
+- [x] Review the diff and commit only generator, sample artifacts and asset tests on an isolated sample branch.
 
 ### Task 2: Verify the sample in the existing presentation
 
 **Interfaces:** consumes Task 1's mounter GLB; uses existing `Pick & Place`, `Start simulation`, pause and reset controls. No new customer-facing UI.
 
-- [ ] Extend `models.spec.ts` to check mounter load and selection, and parameterize the corrupt-model fallback test to include mounter. Verify the scene remains interactive and simulation count progresses under fallback.
-- [ ] Capture same-camera before/after mounter screenshots at 1600×900, plus final overview and oblique close-up. Test default lighting and `?quality=low`. Inspect door gaps, hardware, HMI label, glazing transparency and mechanism clearance during a cycle; record findings rather than treating a screenshot capture as visual proof.
-- [ ] If glass produces opaque shadows, disable castShadow only for meshes using `Mounter safety glass` in `Factory.tsx`; preserve opaque-part shadows. Repeat the affected visual check.
-- [ ] Measure identical-duration rAF callback samples before/after with the same viewport/browser settings; report them as callback rate, with software-renderer limitations. Do not infer target-machine cost from these samples.
-- [ ] Run `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, and `npm run test:e2e`. Capture actual exit codes and full summaries; do not pipe errors away. Investigate failures rather than increasing timeouts.
-- [ ] Write `docs/MOUNTER_SAMPLE_REPORT.md` with commands, measured results and screenshots, including static-HMI and closed-door limitations. Confirm only approved paths changed and commit the verified sample.
-- [ ] Present the actual sample close-up for user acceptance. Stop before other stations, merge or PR unless requested.
+- [x] Extend `models.spec.ts` to check mounter load and selection, and parameterize the corrupt-model fallback test to include mounter. Verify the scene remains interactive and simulation count progresses under fallback.
+- [x] Capture same-camera before/after mounter screenshots at 1600×900, plus final overview and oblique close-up. Test default lighting and `?quality=low`. Inspect door gaps, hardware, HMI label, glazing transparency and mechanism clearance during a cycle; record findings rather than treating a screenshot capture as visual proof.
+- [x] If glass produces opaque shadows, disable castShadow only for meshes using `Mounter safety glass` in `Factory.tsx`; preserve opaque-part shadows. Repeat the affected visual check.
+- [x] Measure identical-duration rAF callback samples before/after with the same viewport/browser settings; report them as callback rate, with software-renderer limitations. Do not infer target-machine cost from these samples.
+- [x] Run `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, and `npm run test:e2e`. Capture actual exit codes and full summaries; do not pipe errors away. Investigate failures rather than increasing timeouts.
+- [x] Write `docs/MOUNTER_SAMPLE_REPORT.md` with commands, measured results and screenshots, including static-HMI and closed-door limitations. Confirm only approved paths changed and commit the verified sample.
+- [x] Present the actual sample close-up for user acceptance. Stop before other stations, merge or PR unless requested.
 
 ## Plan Self-review
 
