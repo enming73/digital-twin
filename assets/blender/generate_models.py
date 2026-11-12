@@ -95,69 +95,68 @@ def shell(mats):
 
 
 def printer_parts(mats):
-    _, trim, glass, metal, _, _ = mats
+    _, trim, _, metal, _, _ = mats
     cabinet = group('Cabinet')
-    box('Printer worktable', (0, 1.25, 1.0), (1.65, .09, .17), metal, cabinet)
+    box('Printer worktable', (0, 1.25, .95), (1.55, .09, .12), metal, cabinet)
     stencil = group('Stencil')
-    box('Stencil frame', (0, 1.43, 1.0), (1.62, .025, .52), trim, stencil)
-    box('Stencil sheet', (0, 1.445, 1.0), (1.46, .006, .44), metal, stencil, .001)
+    box('Stencil frame', (0, 1.43, .95), (1.45, .02, .36), trim, stencil, .004)
+    box('Stencil sheet', (0, 1.445, .95), (1.30, .006, .30), metal, stencil, .001)
     squeegee = group('Squeegee')
-    box('Squeegee carriage', (0, 1.51, 1.0), (1.30, .06, .09), metal, squeegee)
-    box('Squeegee blade', (0, 1.465, 1.0), (1.10, .05, .02), trim, squeegee, .002)
+    box('Squeegee carriage', (0, 1.51, .95), (1.20, .06, .08), metal, squeegee)
+    box('Squeegee blade', (0, 1.465, .95), (1.05, .05, .02), trim, squeegee, .002)
     clamp = group('Clamp')
-    for x in (-.72, .72):
-        box('Board clamp', (x, 1.34, 1.0), (.10, .10, .12), trim, clamp)
+    for x in (-.66, .66):
+        box('Board clamp', (x, 1.34, .95), (.10, .10, .10), trim, clamp)
 
 
 def mounter_parts(mats):
     _, trim, _, metal, _, _ = mats
     gantry = group('Gantry_X')
-    box('Gantry beam', (0, 1.66, 1.0), (1.90, .09, .10), metal, gantry)
+    box('Gantry beam', (0, 1.66, .95), (1.50, .09, .08), metal, gantry)
     rail = group('Gantry_Y')
-    box('Gantry rail', (0, 1.50, 1.0), (.06, .42, .06), metal, rail, .004)
+    box('Gantry rail', (0, 1.50, .95), (.06, .42, .06), metal, rail, .004)
     head = group('Placement_Head')
-    box('Head body', (0, 1.54, 1.0), (.20, .28, .14), trim, head)
-    box('Head nozzle', (0, 1.36, 1.0), (.05, .12, .05), metal, head, .003)
+    box('Head body', (0, 1.54, .95), (.20, .28, .12), trim, head)
+    box('Head nozzle', (0, 1.36, .95), (.05, .12, .05), metal, head, .003)
     feeders = group('Feeders')
-    box('Feeder rack', (0, 1.28, 1.02), (1.92, .10, .24), trim, feeders)
+    box('Feeder rack', (0, 1.28, 1.00), (1.50, .10, .16), trim, feeders)
     for i in range(8):
-        box('Feeder slot', (-.77 + .22 * i, 1.33, 1.05), (.10, .05, .16), metal, feeders, .003)
+        box('Feeder slot', (-.61 + .20 * i, 1.33, 1.02), (.09, .05, .10), metal, feeders, .002)
 
 
 def camera_parts(mats):
     _, trim, glass, metal, _, _ = mats
     bridge = group('Camera_Bridge')
-    box('Bridge beam', (0, 1.62, 1.0), (1.55, .08, .12), metal, bridge)
+    box('Bridge beam', (0, 1.62, .95), (1.45, .08, .10), metal, bridge)
     head = group('Camera_Head')
-    box('Camera body', (0, 1.49, 1.0), (.16, .18, .14), trim, head)
-    box('Camera lens', (0, 1.39, 1.0), (.09, .09, .09), glass, head, .004)
+    box('Camera body', (0, 1.49, .95), (.16, .18, .12), trim, head)
+    box('Camera lens', (0, 1.39, .95), (.09, .09, .09), glass, head, .004)
 
 
 def reflow_parts(mats):
-    _, trim, glass, metal, _, _ = mats
+    _, trim, _, metal, _, _ = mats
     tunnel = group('Tunnel')
     for z in (-.52, .52):
         box('Tunnel wall', (0, 1.60, z), (2.05, .55, .09), metal, tunnel)
     box('Tunnel roof', (0, 1.92, 0), (2.05, .10, .94), trim, tunnel)
-    box('Oven glazing', (0, 1.62, .60), (1.85, .22, .02), glass, tunnel, .002)
     shutters = group('Zone_Shutter')
     for x in (-.45, 0, .45):
-        box('Zone shutter', (x, 1.55, .62), (.05, .30, .02), metal, shutters, .002)
+        box('Zone shutter', (x, 1.55, .95), (.06, .30, .02), metal, shutters, .002)
     belt = group('Belt')
     for i in range(6):
-        box('Belt cleat', (-.90 + .36 * i, 1.09, 0), (.05, .02, .50), trim, belt, .002)
+        box('Belt cleat', (-.90 + .36 * i, 1.30, .95), (.05, .05, .46), trim, belt, .002)
 
 
 def loader_parts(mats):
     _, trim, _, metal, _, _ = mats
     magazine = group('Magazine')
-    for x in (-.48, .48):
-        box('Magazine wall', (x, 1.30, 1.0), (.06, .70, .50), metal, magazine)
-    box('Magazine back', (0, 1.30, 1.24), (.95, .70, .04), trim, magazine)
+    for x in (-.45, .45):
+        box('Magazine wall', (x, 1.30, .96), (.06, .62, .18), metal, magazine)
+    box('Magazine back', (0, 1.30, .90), (.92, .62, .04), trim, magazine)
     lift = group('Lift')
-    box('Lift platform', (0, 1.10, 1.0), (.90, .05, .55), metal, lift)
-    box('Lift post', (0, .95, 1.28), (.07, .35, .07), trim, lift, .004)
-    box('Pusher bar', (0, 1.30, .72), (.95, .06, .05), trim, group('Pusher'), .003)
+    box('Lift platform', (0, 1.10, .96), (.86, .05, .20), metal, lift)
+    box('Lift post', (0, .95, .90), (.07, .35, .06), trim, lift, .004)
+    box('Pusher bar', (0, 1.30, 1.06), (.90, .06, .04), trim, group('Pusher'), .003)
 
 
 def build(kind):

@@ -4,9 +4,11 @@ import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { overviewCamera, stations, type Station } from '../data/stations'
+import { commonAnchors, stationAnchors, type StationId } from '../data/anchors'
 import type { MachineSnapshot } from '../simulation/engine'
 import type { SceneModel } from '../twin/types'
 import { machineMotion } from './motion'
+import { anchorOffsets, applyAnchorOffsets, captureAnchors } from './anchors'
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
   return <mesh name={name} position={position} castShadow receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} metalness={metal} roughness={0.57} /></mesh>
@@ -47,8 +49,10 @@ function ProceduralShell({ selected, oven, statusColor = '#d6a35a' }: { selected
   </>
 }
 
-function AssetShell({ kind, selected }: { kind: string; selected: boolean }) {
+function AssetShell({ station, machine, time, selected }: { station: Station; machine: MachineSnapshot | null; time: number; selected: boolean }) {
+  const kind = station.id
   const [asset, setAsset] = useState<THREE.Group | null>(null)
+  const rest = useRef<Map<string, THREE.Vector3>>(new Map())
   useEffect(() => {
     const controller = new AbortController()
     let loaded: THREE.Group | null = null
@@ -59,11 +63,16 @@ function AssetShell({ kind, selected }: { kind: string; selected: boolean }) {
         if (controller.signal.aborted) return
         loaded = gltf.scene
         loaded.traverse(child => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true } })
+        rest.current = captureAnchors(loaded, stationAnchors[kind as StationId] ?? commonAnchors)
         setAsset(loaded)
       }).catch(() => { /* Procedural shell stays visible if a local asset fails. */ })
-    return () => { controller.abort(); loaded?.traverse(child => { if (child instanceof THREE.Mesh) { child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; materials.forEach(material => material.dispose()) } }) }
+    return () => { controller.abort(); rest.current = new Map(); loaded?.traverse(child => { if (child instanceof THREE.Mesh) { child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; materials.forEach(material => material.dispose()) } }) }
   }, [kind])
-  if (!asset) return <ProceduralShell selected={selected} oven={kind === 'reflow'} />
+  useFrame(() => {
+    if (!asset || rest.current.size === 0) return
+    applyAnchorOffsets(asset, rest.current, machine ? anchorOffsets(kind, machineMotion(machine, time)) : {})
+  })
+  if (!asset) return <><ProceduralShell selected={selected} oven={kind === 'reflow'} />{machine && <ProcessAssembly station={station} machine={machine} time={time} />}</>
   return <><primitive object={asset} />{selected && <Box position={[0, .03, 0]} size={[2.76, .05, 2.05]} color="#92ae96" />}</>
 }
 
@@ -77,8 +86,7 @@ function Machine({ station, machine, time, selected, onSelect, status }: { stati
   }, [station.short])
   useEffect(() => () => label.dispose(), [label])
   return <group position={station.position} name={station.id} onClick={e => { e.stopPropagation(); onSelect() }}>
-    <AssetShell kind={station.id} selected={selected} />
-    {machine && <ProcessAssembly station={station} machine={machine} time={time} />}
+    <AssetShell station={station} machine={machine} time={time} selected={selected} />
     {!machine && <Box position={[1.01, 2.3, -0.65]} size={[0.14, 0.14, 0.14]} color={status === 'FAULT' ? '#e14e4e' : status === 'BLOCKED' || status === 'STARVED' ? '#e1a545' : status === 'RUNNING' ? '#53b879' : '#87928c'} />}
     <sprite position={[0, 2.28, 0]} scale={[1.1, 0.275, 1]}><spriteMaterial map={label} /></sprite>
   </group>
