@@ -52,8 +52,6 @@ A fuller wrap-up, including evidence and handover notes, is in [`docs/PROJECT_SU
 
 The local browser path and the remote path are deliberately independent. Switching to remote pauses the local simulation; switching back restores it. Remote controls never operate equipment or the simulator.
 
-[![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/enming73/digital-twin?utm_source=readme&utm_medium=badge)
-
 ## Quick start
 
 ### Browser-only demo (default)
