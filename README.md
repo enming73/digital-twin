@@ -65,7 +65,7 @@ npm run dev
 
 Open the URL printed by Vite. Drag to orbit, scroll to zoom, and click a machine or use the keyboard-accessible station list to focus it. **Reset view** restores the overview. Use **Start/Pause**, **Reset**, and the 1×/2×/5× selector.
 
-The scene uses original procedural geometry plus two locally packaged GLBs. WebGL is required; a fallback message is shown when it is unavailable.
+The scene uses seven locally packaged GLBs generated from one original Blender pipeline; the procedural shell is only a load-failure fallback. WebGL is required; a fallback message is shown when it is unavailable.
 
 #### Static deployment
 
@@ -131,13 +131,22 @@ This path commits every simulator boundary to SQLite **before** publishing, and 
   - **Board pass rate** = completed boards in the window that passed all recorded inspections ÷ completed boards in the window with at least one inspection; uninspected boards are excluded.
 - **v0.5 fault and replay** — inject/clear a mounter fault at the current virtual time, then inspect the recorded run in read-only replay. Events at the same timestamp apply in sequence. Logs are in memory only; export/import is not implemented.
 - **v1.0 guided presentation** — a 3½-minute tour at 1× with scripted camera presets, a fault at 70 s, recovery at 145 s and a KPI summary. Manual simulation controls are disabled during the tour.
-- **v0.6 model assets** — original Blender scenes `assets/blender/printer.blend` and `assets/blender/mounter.blend`; browser GLBs in `public/models/`. Recreate them with Blender 4.2 LTS:
+- **v1.1 model assets** — all seven stations are original Blender scenes built by `assets/blender/generate_models.py` (`assets/blender/*.blend`) and exported to `public/models/*.glb`. Recreate them with Blender 4.2+ (verified with 5.2.3 LTS):
 
 ```sh
 blender -b --factory-startup --python assets/blender/generate_models.py
 ```
 
-The GLBs expose named groups such as `Cabinet`, `Conveyor`, `PCB_Anchor`, `Gantry_X`, `Gantry_Y`, `Placement_Head`, `Feeders` and `Signal_Tower`. The motion anchors are empty placeholders: the procedural illustration still drives animation and selection. A failed GLB load keeps the procedural shell visible. Each model is capped at 2 MiB by a unit test; separate LOD variants are not implemented.
+Each GLB exposes the anchors below. They are live motion nodes driven by the simulation snapshot, not placeholders: the runtime captures each anchor's rest pose once and applies bounded offsets, so poses stay deterministic and never drift. A failed GLB load keeps the procedural shell visible. Each model is capped at 2 MiB and 40 meshes by a unit test; separate LOD variants are not implemented. Selecting a station eases the camera to that station's mechanism preset over 1.2 s; dragging cancels the ease.
+
+| kind | anchors |
+| --- | --- |
+| all | `Cabinet`, `Conveyor`, `PCB_Anchor`, `Signal_Tower`, `Signal_Lens` |
+| printer | `Stencil`, `Squeegee`, `Clamp` |
+| mounter | `Gantry_X`, `Gantry_Y`, `Placement_Head`, `Feeders` |
+| spi, aoi | `Camera_Bridge`, `Camera_Head` |
+| reflow | `Tunnel`, `Belt`, `Zone_Shutter` |
+| loader, unloader | `Magazine`, `Lift`, `Pusher` |
 
 ### W2 — independent simulator (`simulator/`)
 
@@ -283,7 +292,7 @@ cd tests/integration && W6_PROJECT=w6-e2e-$(date +%s) ./w6-recovery.sh
 
 **Browser demo and build**
 
-- Station mechanisms are conceptual. Cross-station PCB jumps remain a known visual gap; transfers are instantaneous in the model. GLB motion anchors are placeholders and LOD variants are not implemented.
+- Station mechanisms are conceptual and their travel is bounded illustration, not machine coordinates. Cross-station PCB jumps remain a known visual gap; transfers are instantaneous in the model. Remote (W4) and historical replay views render the seven models statically because the projection carries no per-station process phase. LOD variants and environment lighting are not implemented.
 - Analytics are calculated from the in-memory simulated run, not certified KPIs, MES data or production telemetry. Replay logs are in memory; export/import is not implemented.
 - The build targets root deployment; a subpath requires setting Vite's `base`. The bundle exceeds 500 kB and dependency advisories remain.
 
