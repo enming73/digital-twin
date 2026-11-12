@@ -8,19 +8,23 @@ test('loads every station model and retains machine selection', async ({ page })
   await expect.poll(() => artifactNames.every(name => loads.some(url => url.endsWith(`/${name}.glb`)))).toBe(true)
   await page.getByRole('button', { name: /Solder Paste Printer/ }).click()
   await expect(page.getByRole('heading', { name: 'Solder Paste Printer' })).toBeVisible()
+  await page.getByRole('button', { name: /Pick & Place/ }).click()
+  await expect(page.getByRole('heading', { name: 'Pick & Place' })).toBeVisible()
 })
 
-test('keeps the factory interactive if a model fails to load', async ({ page }) => {
+for (const [kind, label] of [['printer', 'Solder Paste Printer'], ['mounter', 'Pick & Place']]) {
+test(`keeps the factory interactive if ${kind} fails to load`, async ({ page }) => {
   let intercepted = false
-  await page.route('**/models/printer.glb', route => { intercepted = true; return route.fulfill({ status: 200, contentType: 'model/gltf-binary', body: 'invalid model' }) })
+  await page.route(`**/models/${kind}.glb`, route => { intercepted = true; return route.fulfill({ status: 200, contentType: 'model/gltf-binary', body: 'invalid model' }) })
   await page.goto('/')
   await expect.poll(() => intercepted).toBe(true)
   await expect(page.locator('canvas')).toBeVisible()
-  await page.getByRole('button', { name: /Solder Paste Printer/ }).click()
-  await expect(page.getByRole('heading', { name: 'Solder Paste Printer' })).toBeVisible()
+  await page.getByRole('button', { name: new RegExp(label) }).click()
+  await expect(page.getByRole('heading', { name: label })).toBeVisible()
   await page.getByRole('button', { name: 'Start simulation' }).click()
   await expect(page.getByTestId('created-count')).not.toHaveText('0')
 })
+}
 
 test('falls back to the procedural shell for a newly modelled station', async ({ page }) => {
   let intercepted = false
