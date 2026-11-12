@@ -1,11 +1,13 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"smt-digital-twin/backend/internal/contract"
 	"smt-digital-twin/backend/internal/ingest"
 	"smt-digital-twin/backend/internal/twin"
@@ -152,5 +154,40 @@ func TestSlowWebsocketDisconnectsAndResynchronizes(t *testing.T) {
 	}
 	if snapshot.Type != "snapshot" || snapshot.Revision != 300 {
 		t.Fatalf("resync: %+v", snapshot)
+	}
+}
+
+func TestAssetRegistryReportsShippedModels(t *testing.T) {
+	store := twin.NewStore("epoch", map[string][]string{})
+	consumer := ingest.NewConsumer(store)
+	server := httptest.NewServer(NewHandler(store, consumer))
+	defer server.Close()
+	res, err := http.Get(server.URL + "/api/assets")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var list []struct {
+		MachineID      string  `json:"machineId"`
+		ModelURL       *string `json:"modelURL"`
+		Representation string  `json:"representation"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 7 {
+		t.Fatalf("assets: got %d entries", len(list))
+	}
+	for _, a := range list {
+		if a.Representation != "glb" {
+			t.Fatalf("%s reports %q", a.MachineID, a.Representation)
+		}
+		want := "/models/" + a.MachineID + ".glb"
+		if a.ModelURL == nil || *a.ModelURL != want {
+			t.Fatalf("%s reports model %v, want %s", a.MachineID, a.ModelURL, want)
+		}
+		if _, err := os.Stat("../../../public/models/" + a.MachineID + ".glb"); err != nil {
+			t.Fatalf("%s is advertised but missing: %v", a.MachineID, err)
+		}
 	}
 }

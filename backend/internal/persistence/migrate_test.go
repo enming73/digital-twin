@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"smt-digital-twin/backend/migrations"
 )
 
 func testDatabase(t *testing.T) *pgxpool.Pool {
@@ -70,10 +71,53 @@ func TestMigration(t *testing.T) {
 	if _, err = db.Exec(ctx, `INSERT INTO events (run_id,event_id,sequence,schema_version,sim_time_ms,emitted_at,ingested_at,envelope) VALUES ('r','other',1,1,0,now(),now(),'{}')`); err == nil {
 		t.Fatal("duplicate sequence accepted")
 	}
+	var registered, schemaVersion int
+	if err = db.QueryRow(ctx, `SELECT COUNT(*) FROM assets WHERE representation = 'glb' AND model_url = '/models/' || machine_id || '.glb'`).Scan(&registered); err != nil {
+		t.Fatal(err)
+	}
+	if registered != 7 {
+		t.Fatalf("asset registry rows: %d", registered)
+	}
+	if err = db.QueryRow(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&schemaVersion); err != nil {
+		t.Fatal(err)
+	}
+	if schemaVersion != 2 {
+		t.Fatalf("schema version: %d", schemaVersion)
+	}
 	if _, err = db.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES (999)`); err != nil {
 		t.Fatal(err)
 	}
 	if err = Migrate(ctx, db); err == nil {
 		t.Fatal("newer migration version accepted")
+	}
+}
+
+func TestMigrationUpgradesVersionOne(t *testing.T) {
+	ctx := context.Background()
+	db := testDatabase(t)
+	if _, err := db.Exec(ctx, migrations.Initial); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(ctx, `INSERT INTO schema_migrations(version) VALUES (1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := Migrate(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	var version, registered int
+	if err := db.QueryRow(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != 2 {
+		t.Fatalf("upgraded version: %d", version)
+	}
+	if err := db.QueryRow(ctx, `SELECT COUNT(*) FROM assets WHERE representation = 'glb'`).Scan(&registered); err != nil {
+		t.Fatal(err)
+	}
+	if registered != 7 {
+		t.Fatalf("upgraded asset rows: %d", registered)
 	}
 }
