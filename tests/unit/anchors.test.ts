@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
-import { anchorOffsets, applyAnchorOffsets, captureAnchors } from '../../src/scene/anchors'
+import { anchorOffsets, applyAnchorOffsets, captureAnchors, BELT_PITCH } from '../../src/scene/anchors'
 
 function mounterTree() {
   const root = new THREE.Group()
@@ -29,12 +29,26 @@ describe('anchor poses', () => {
     }
   })
 
-  it('keeps the reflow belt inside half a metre of travel', () => {
+  it('advances the reflow belt by exactly one cleat pitch per cycle', () => {
     for (const cycle of [0, 0.5, 1]) {
       const offsets = anchorOffsets('reflow', { cycle, sweep: 0, lift: 0 })
-      expect(offsets.Belt.x).toBeGreaterThanOrEqual(0)
-      expect(offsets.Belt.x).toBeLessThanOrEqual(0.5)
+      expect(offsets.Belt.x).toBeCloseTo(cycle * BELT_PITCH, 6)
     }
+    // A reset from cycle 1 to 0 moves the row back by a whole pitch, so the seam is invisible.
+    expect(anchorOffsets('reflow', { cycle: 1, sweep: 0, lift: 0 }).Belt.x - anchorOffsets('reflow', { cycle: 0, sweep: 0, lift: 0 }).Belt.x).toBeCloseTo(BELT_PITCH, 6)
+    expect(anchorOffsets('reflow', { cycle: 3, sweep: 0, lift: 0 }).Belt.x).toBeCloseTo(BELT_PITCH, 6)
+  })
+
+  it('holds a paused pose exactly still across repeated frames', () => {
+    const root = mounterTree()
+    const rest = captureAnchors(root, ['Gantry_X', 'Placement_Head'])
+    const pose = { cycle: 0.37, sweep: 0.68, lift: 0.43 }
+    const offsets = anchorOffsets('mounter', pose)
+    applyAnchorOffsets(root, rest, offsets)
+    const first = root.getObjectByName('Gantry_X')!.position.clone()
+    for (let frame = 0; frame < 10; frame++) applyAnchorOffsets(root, rest, anchorOffsets('mounter', pose))
+    expect(root.getObjectByName('Gantry_X')!.position.equals(first)).toBe(true)
+    expect(anchorOffsets('mounter', pose)).toEqual(offsets)
   })
 
   it('returns no offsets for an unknown kind', () => {

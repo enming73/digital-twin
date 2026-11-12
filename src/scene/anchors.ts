@@ -4,6 +4,9 @@ import type { MechanismPose } from './motion'
 type Offset = Partial<Record<'x' | 'y' | 'z', number>>
 export type AnchorOffsets = Record<string, Offset>
 
+/** Blender cleat pitch; one pitch of travel per process cycle keeps the wrap seam invisible. */
+export const BELT_PITCH = 0.36
+
 /**
  * Illustrative anchor travel in metres, derived from the normalized process pose.
  * These are conceptual movements, not machine coordinates.
@@ -24,7 +27,7 @@ export function anchorOffsets(kind: string, pose: MechanismPose): AnchorOffsets 
     case 'aoi':
       return { Camera_Bridge: { x: sweep * 0.57 }, Camera_Head: { y: -lift * 0.05 } }
     case 'reflow':
-      return { Belt: { x: cycle * 0.5 }, Zone_Shutter: { y: lift * 0.03 } }
+      return { Belt: { x: Math.min(1, Math.max(0, cycle)) * BELT_PITCH }, Zone_Shutter: { y: lift * 0.03 } }
     case 'loader':
     case 'unloader':
       return { Lift: { y: lift * 0.18 }, Pusher: { z: sweep * 0.1 } }

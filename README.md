@@ -131,13 +131,13 @@ This path commits every simulator boundary to SQLite **before** publishing, and 
   - **Board pass rate** = completed boards in the window that passed all recorded inspections ÷ completed boards in the window with at least one inspection; uninspected boards are excluded.
 - **v0.5 fault and replay** — inject/clear a mounter fault at the current virtual time, then inspect the recorded run in read-only replay. Events at the same timestamp apply in sequence. Logs are in memory only; export/import is not implemented.
 - **v1.0 guided presentation** — a 3½-minute tour at 1× with scripted camera presets, a fault at 70 s, recovery at 145 s and a KPI summary. Manual simulation controls are disabled during the tour.
-- **v1.1 model assets** — all seven stations are original Blender scenes built by `assets/blender/generate_models.py` (`assets/blender/*.blend`) and exported to `public/models/*.glb`. Recreate them with Blender 4.2+ (verified with 5.2.3 LTS):
+- **v1.1 model assets** — all seven stations are original Blender scenes built by `assets/blender/generate_models.py` (`assets/blender/*.blend`) and exported to `public/models/*.glb`. Recreate them with Blender 4.2+ (verified with 5.2.3 LTS). From WSL with the Windows build:
 
 ```sh
-blender -b --factory-startup --python assets/blender/generate_models.py
+cd /mnt/e/blender-5.2.3-windows-x64 && ./blender.exe -b --factory-startup --python "\\\\wsl.localhost\\Ubuntu\\home\\enming\\demo-projects\\smt-digital-twin\\assets\\blender\\generate_models.py"
 ```
 
-Each GLB exposes the anchors below. They are live motion nodes driven by the simulation snapshot, not placeholders: the runtime captures each anchor's rest pose once and applies bounded offsets, so poses stay deterministic and never drift. A failed GLB load keeps the procedural shell visible. Each model is capped at 2 MiB and 40 meshes by a unit test; separate LOD variants are not implemented. Selecting a station eases the camera to that station's mechanism preset over 1.2 s; dragging cancels the ease.
+Each GLB exposes the anchors below. The per-kind motion anchors are live nodes driven by the simulation snapshot, not placeholders: the runtime captures each anchor's rest pose once and applies bounded offsets, so poses stay deterministic and never drift. `Cabinet`, `Conveyor`, `PCB_Anchor` and `Signal_Tower` are structural reference nodes and stay static. A failed GLB load keeps the procedural shell visible, and the shell is also the placeholder while a model is loading. Each model is capped at 2 MiB and 40 meshes by a unit test; separate LOD variants are not implemented. Selecting a station eases the camera to that station's mechanism preset over 1.2 s; dragging cancels the ease.
 
 | kind | anchors |
 | --- | --- |
@@ -292,7 +292,7 @@ cd tests/integration && W6_PROJECT=w6-e2e-$(date +%s) ./w6-recovery.sh
 
 **Browser demo and build**
 
-- Station mechanisms are conceptual and their travel is bounded illustration, not machine coordinates. Cross-station PCB jumps remain a known visual gap; transfers are instantaneous in the model. Remote (W4) and historical replay views render the seven models statically because the projection carries no per-station process phase. LOD variants and environment lighting are not implemented.
+- Station mechanisms are conceptual and their travel is bounded illustration, not machine coordinates. Cross-station PCB jumps remain a known visual gap; transfers are instantaneous in the model. Remote (W4) views and their historical replay render the seven models statically because the projection carries no per-station process phase; local replay still drives poses from the recorded virtual time. LOD variants and environment lighting are not implemented.
 - Analytics are calculated from the in-memory simulated run, not certified KPIs, MES data or production telemetry. Replay logs are in memory; export/import is not implemented.
 - The build targets root deployment; a subpath requires setting Vite's `base`. The bundle exceeds 500 kB and dependency advisories remain.
 
