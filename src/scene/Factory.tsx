@@ -47,7 +47,7 @@ function ProceduralShell({ selected, oven, statusColor = '#d6a35a' }: { selected
   </>
 }
 
-function AssetShell({ kind, selected }: { kind: 'printer' | 'mounter'; selected: boolean }) {
+function AssetShell({ kind, selected }: { kind: string; selected: boolean }) {
   const [asset, setAsset] = useState<THREE.Group | null>(null)
   useEffect(() => {
     const controller = new AbortController()
@@ -63,7 +63,7 @@ function AssetShell({ kind, selected }: { kind: 'printer' | 'mounter'; selected:
       }).catch(() => { /* Procedural shell stays visible if a local asset fails. */ })
     return () => { controller.abort(); loaded?.traverse(child => { if (child instanceof THREE.Mesh) { child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; materials.forEach(material => material.dispose()) } }) }
   }, [kind])
-  if (!asset) return <ProceduralShell selected={selected} oven={false} />
+  if (!asset) return <ProceduralShell selected={selected} oven={kind === 'reflow'} />
   return <><primitive object={asset} />{selected && <Box position={[0, .03, 0]} size={[2.76, .05, 2.05]} color="#92ae96" />}</>
 }
 
@@ -77,7 +77,7 @@ function Machine({ station, machine, time, selected, onSelect, status }: { stati
   }, [station.short])
   useEffect(() => () => label.dispose(), [label])
   return <group position={station.position} name={station.id} onClick={e => { e.stopPropagation(); onSelect() }}>
-    {station.id === 'printer' || station.id === 'mounter' ? <AssetShell kind={station.id} selected={selected} /> : <ProceduralShell selected={selected} oven={station.kind === 'oven'} statusColor={machine ? undefined : status === 'FAULT' ? '#e14e4e' : status === 'BLOCKED' || status === 'STARVED' ? '#e1a545' : status === 'RUNNING' ? '#53b879' : '#87928c'} />}
+    <AssetShell kind={station.id} selected={selected} />
     {machine && <ProcessAssembly station={station} machine={machine} time={time} />}
     {!machine && <Box position={[1.01, 2.3, -0.65]} size={[0.14, 0.14, 0.14]} color={status === 'FAULT' ? '#e14e4e' : status === 'BLOCKED' || status === 'STARVED' ? '#e1a545' : status === 'RUNNING' ? '#53b879' : '#87928c'} />}
     <sprite position={[0, 2.28, 0]} scale={[1.1, 0.275, 1]}><spriteMaterial map={label} /></sprite>
