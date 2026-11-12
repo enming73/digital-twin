@@ -11,6 +11,7 @@ import { machineMotion } from './motion'
 import { anchorOffsets, applyAnchorOffsets, captureAnchors } from './anchors'
 import { easeInOutCubic, lerpPreset, tweenProgress } from './cameraTween'
 import { signalColor, signalIntensity } from './status'
+import Floor from './Floor'
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
   return <mesh name={name} position={position} castShadow receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} metalness={metal} roughness={0.57} /></mesh>
@@ -199,8 +200,7 @@ export default function Factory({ selected, onSelect, resetKey, scene, selectedB
   return <Canvas shadows dpr={[1, 1.5]} camera={{ position: overviewCamera.position, fov: 40 }} fallback={<div className="canvas-fallback">3D view unavailable. WebGL is required to view the factory.</div>}>
     <color attach="background" args={['#d9ded9']} /><fog attach="fog" args={['#d9ded9', 35, 80]} />
     <ambientLight intensity={1.25} /><directionalLight position={[4, 12, 8]} intensity={2} castShadow shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.02} shadow-camera-left={-12} shadow-camera-right={12} shadow-camera-top={10} shadow-camera-bottom={-10} />
-    <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[100, 100]} /><meshStandardMaterial color="#b8c1ba" roughness={0.95} /></mesh>
-    <gridHelper args={[60, 60, '#9fa9a1', '#aab3ab']} position={[0, 0.005, 0]} />
+    <Floor />
     {stations.map(station => <Machine key={station.id} station={station} machine={scene.stations[station.id]?.localMotion ?? null} status={scene.stations[station.id]?.state ?? 'UNKNOWN'} time={scene.simTimeMs} selected={selected?.id === station.id || boardStation === station.id} onSelect={() => onSelect(station)} />)}
     <Boards scene={scene} selectedBoard={selectedBoard} onSelectBoard={onSelectBoard} /><CameraRig station={selected} resetKey={resetKey} />
   </Canvas>

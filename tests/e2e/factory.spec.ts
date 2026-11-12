@@ -39,3 +39,21 @@ test('a drag during the push-in cancels the ease without breaking the scene', as
   await expect(page.getByRole('heading', { name: 'Select a station' })).toBeVisible()
   expect(errors).toEqual([])
 })
+
+test('renders the scene without console errors or cross-origin requests', async ({ page }) => {
+  const errors: string[] = []
+  const external: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  page.on('request', request => {
+    const url = new URL(request.url())
+    if (!url.protocol.startsWith('http')) return
+    if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') external.push(request.url())
+  })
+  await page.goto('/')
+  await expect(page.locator('canvas')).toBeVisible()
+  await page.waitForTimeout(1500)
+  await page.screenshot({ path: 'test-results/v12-overview.png', animations: 'disabled' })
+  expect(external).toEqual([])
+  expect(errors).toEqual([])
+})
