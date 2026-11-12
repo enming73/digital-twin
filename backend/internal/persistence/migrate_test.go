@@ -70,6 +70,13 @@ func TestMigration(t *testing.T) {
 	if _, err = db.Exec(ctx, `INSERT INTO events (run_id,event_id,sequence,schema_version,sim_time_ms,emitted_at,ingested_at,envelope) VALUES ('r','other',1,1,0,now(),now(),'{}')`); err == nil {
 		t.Fatal("duplicate sequence accepted")
 	}
+	var registered int
+	if err = db.QueryRow(ctx, `SELECT COUNT(*) FROM assets WHERE representation = 'glb' AND model_url = '/models/' || machine_id || '.glb'`).Scan(&registered); err != nil {
+		t.Fatal(err)
+	}
+	if registered != 7 {
+		t.Fatalf("asset registry rows: %d", registered)
+	}
 	if _, err = db.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES (999)`); err != nil {
 		t.Fatal(err)
 	}
