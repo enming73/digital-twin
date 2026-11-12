@@ -3,12 +3,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { overviewCamera, stations, type Station } from '../data/stations'
+import { overviewCamera, stations, type CameraPreset, type Station } from '../data/stations'
 import { commonAnchors, stationAnchors, type StationId } from '../data/anchors'
 import type { MachineSnapshot } from '../simulation/engine'
 import type { SceneModel } from '../twin/types'
 import { machineMotion } from './motion'
 import { anchorOffsets, applyAnchorOffsets, captureAnchors } from './anchors'
+import { easeInOutCubic, lerpPreset, tweenProgress } from './cameraTween'
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
   return <mesh name={name} position={position} castShadow receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} metalness={metal} roughness={0.57} /></mesh>
@@ -88,20 +89,49 @@ function Machine({ station, machine, time, selected, onSelect, status }: { stati
   return <group position={station.position} name={station.id} onClick={e => { e.stopPropagation(); onSelect() }}>
     <AssetShell station={station} machine={machine} time={time} selected={selected} />
     {!machine && <Box position={[1.01, 2.3, -0.65]} size={[0.14, 0.14, 0.14]} color={status === 'FAULT' ? '#e14e4e' : status === 'BLOCKED' || status === 'STARVED' ? '#e1a545' : status === 'RUNNING' ? '#53b879' : '#87928c'} />}
-    <sprite position={[0, 2.28, 0]} scale={[1.1, 0.275, 1]}><spriteMaterial map={label} /></sprite>
+    {!selected && <sprite position={[0, 2.28, 0]} scale={[1.1, 0.275, 1]}><spriteMaterial map={label} /></sprite>}
   </group>
 }
 
 function CameraRig({ station, resetKey }: { station: Station | null; resetKey: number }) {
   const { camera, controls } = useThree()
+  const tween = useRef<{ from: CameraPreset; to: CameraPreset; elapsed: number; active: boolean } | null>(null)
+
   useEffect(() => {
-    const preset = station?.camera ?? overviewCamera
-    camera.position.set(...preset.position)
+    const orbit = controls && 'target' in controls ? (controls as unknown as { target: THREE.Vector3 }) : null
+    tween.current = {
+      from: {
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: orbit ? [orbit.target.x, orbit.target.y, orbit.target.z] : [0, 0, 0],
+      },
+      to: station?.mechanismCamera ?? overviewCamera,
+      elapsed: 0,
+      active: true,
+    }
+  }, [camera, controls, station, resetKey])
+
+  useEffect(() => {
+    const orbit = controls as unknown as { addEventListener?: (name: string, handler: () => void) => void; removeEventListener?: (name: string, handler: () => void) => void } | null
+    if (!orbit?.addEventListener || !orbit.removeEventListener) return
+    const cancel = () => { if (tween.current) tween.current.active = false }
+    orbit.addEventListener('start', cancel)
+    return () => orbit.removeEventListener?.('start', cancel)
+  }, [controls])
+
+  useFrame((_, delta) => {
+    const current = tween.current
+    if (!current?.active) return
+    current.elapsed += delta * 1000
+    const { t, done } = tweenProgress(current.elapsed)
+    const pose = lerpPreset(current.from, current.to, easeInOutCubic(t))
+    camera.position.set(...pose.position)
     if (controls && 'target' in controls) {
       const orbit = controls as unknown as { target: THREE.Vector3; update: () => void }
-      orbit.target.set(...preset.target); orbit.update()
-    } else camera.lookAt(...preset.target)
-  }, [camera, controls, station, resetKey])
+      orbit.target.set(...pose.target); orbit.update()
+    } else camera.lookAt(...pose.target)
+    if (done) current.active = false
+  })
+
   return <OrbitControls makeDefault minDistance={3} maxDistance={42} maxPolarAngle={Math.PI / 2.05} />
 }
 

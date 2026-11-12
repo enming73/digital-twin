@@ -11,4 +11,15 @@ describe('factory layout', () => {
     expect(boardPositions).toHaveLength(20)
     expect(overviewCamera.position).toHaveLength(3)
   })
+  it('frames the mechanism of every station inside the process window', () => {
+    for (const station of stations) {
+      expect(station.mechanismCamera.position).toHaveLength(3)
+      expect(station.mechanismCamera.target).toHaveLength(3)
+      expect(station.mechanismCamera.target).not.toEqual(overviewCamera.target)
+      expect(station.mechanismCamera.target[1]).toBeGreaterThanOrEqual(0.8)
+      expect(station.mechanismCamera.target[1]).toBeLessThanOrEqual(1.9)
+      expect(station.mechanismCamera).not.toEqual(station.camera)
+      expect(station.mechanismCamera.position[2]).toBeGreaterThan(station.mechanismCamera.target[2])
+    }
+  })
 })
