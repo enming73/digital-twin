@@ -52,6 +52,8 @@ A fuller wrap-up, including evidence and handover notes, is in [`docs/PROJECT_SU
 
 The local browser path and the remote path are deliberately independent. Switching to remote pauses the local simulation; switching back restores it. Remote controls never operate equipment or the simulator.
 
+[![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/enming73/digital-twin?utm_source=readme&utm_medium=badge)
+
 ## Quick start
 
 ### Browser-only demo (default)
@@ -65,7 +67,7 @@ npm run dev
 
 Open the URL printed by Vite. Drag to orbit, scroll to zoom, and click a machine or use the keyboard-accessible station list to focus it. **Reset view** restores the overview. Use **Start/Pause**, **Reset**, and the 1×/2×/5× selector.
 
-The scene uses seven locally packaged GLBs generated from one original Blender pipeline; the procedural shell is only a load-failure fallback. WebGL is required; a fallback message is shown when it is unavailable.
+The scene uses seven locally packaged GLBs generated from one original Blender pipeline; the procedural shell is only a load-failure fallback. Lighting is an authored showroom rig: three softbox lightformers baked once into an environment map, a key light that casts shadows, and a blurred planar reflection on the floor. No HDRI, texture or font is downloaded — the demo still runs with no network. WebGL is required; a fallback message is shown when it is unavailable.
 
 #### Static deployment
 
@@ -292,7 +294,7 @@ cd tests/integration && W6_PROJECT=w6-e2e-$(date +%s) ./w6-recovery.sh
 
 **Browser demo and build**
 
-- Station mechanisms are conceptual and their travel is bounded illustration, not machine coordinates. Cross-station PCB jumps remain a known visual gap; transfers are instantaneous in the model. Remote (W4) views and their historical replay render the seven models statically because the projection carries no per-station process phase; local replay still drives poses from the recorded virtual time. LOD variants and environment lighting are not implemented.
+- Station mechanisms are conceptual and their travel is bounded illustration, not machine coordinates. Cross-station PCB jumps remain a known visual gap; transfers are instantaneous in the model. Remote (W4) views and their historical replay render the seven models statically because the projection carries no per-station process phase; local replay still drives poses from the recorded virtual time. LOD variants and post-processing (ambient occlusion, bloom, depth of field) are not implemented. The reflective floor re-renders the scene once per frame: headless SwiftShader measures ~4 callbacks/s at 1366×768, far below the ~21 measured for the v1.1 lighting, and software rasterisation exaggerates IBL cost. Validate the frame rate on the actual demo machine; replacing `src/scene/Floor.tsx` with a plain `meshStandardMaterial` plane removes the reflection pass.
 - Analytics are calculated from the in-memory simulated run, not certified KPIs, MES data or production telemetry. Replay logs are in memory; export/import is not implemented.
 - The build targets root deployment; a subpath requires setting Vite's `base`. The bundle exceeds 500 kB and dependency advisories remain.
 

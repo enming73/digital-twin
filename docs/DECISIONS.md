@@ -54,3 +54,10 @@
 - Shadow acne is removed with `bias -0.0004`, `normalBias 0.02` and a 2048 map tightened to ±12 m. Signal-tower colour comes from `src/scene/status.ts` for both paths; emissive is set on the cloned GLB lens material only. Selection is a ground ring, not a floor plate.
 - `/api/assets` reports seven `glb` entries and migration `002_v11_assets.sql` corrects the seed rows; the supported schema version is now 2.
 - Historical acceptance records (`ACCEPTANCE.md`, `IMPLEMENTATION_BASELINE.md`, `PROJECT_SUMMARY.md`, `W1_GAP_REPORT.md`) were deliberately left untouched: they record the evidence of their own phases. v1.1 evidence lives in this entry and in README.
+
+## v1.2 (2026-11-12)
+- The environment is authored in code with drei `Lightformer` rectangles baked once (`frames={1}`, 256) into a PMREM. No HDRI file and no CDN: the demo keeps working with no network, and the `factory.spec.ts` test pins zero cross-origin requests.
+- Exposure is a single constant (`EXPOSURE = 0.85`) in `src/scene/lighting.tsx`; the key light at 2.6 casts shadows, fill 0.35 and rim 0.6 do not. Ambient is 0.12 — the environment supplies the indirect light.
+- The floor is `MeshReflectorMaterial` at 256 with heavy blur and `mirror 0.24`, reading as polished epoxy. The plane is 400 m so its edge sits past the fog; the backdrop is a CSS gradient behind a transparent canvas and the fog colour matches it.
+- Measured on headless SwiftShader at 1366×768: ~4.2 animation callbacks/s with reflection and IBL, against the ~21.1 recorded for the v1.1 lighting. Resolution 512/256/128 changed the result by less than a frame, so the pass is dominated by re-rendering the scene, not by the reflection target. This is a software rasteriser, not a laptop GPU; the customer demo's hardware must be measured before accepting it. The fallback is one file: replace `src/scene/Floor.tsx` with a plain shaded plane.
+- Post-processing (SSAO, bloom, DOF), set dressing (fences, ceiling trusses, cable trays), texture baking and LODs stay deferred. Nothing in the v1.1 asset pipeline, anchor motion, camera easing or backend changed in this round.
