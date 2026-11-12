@@ -13,6 +13,7 @@ import { easeInOutCubic, lerpPreset, tweenProgress } from './cameraTween'
 import { signalColor, signalIntensity } from './status'
 import Floor from './Floor'
 import LightRig, { EXPOSURE } from './lighting'
+import { castsShadow } from './assetMaterials'
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
   return <mesh name={name} position={position} castShadow receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} metalness={metal} roughness={0.57} /></mesh>
@@ -74,7 +75,13 @@ function AssetShell({ station, machine, time, selected, state }: { station: Stat
       .then(gltf => {
         if (controller.signal.aborted) return
         loaded = gltf.scene
-        loaded.traverse(child => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true } })
+        loaded.traverse(child => {
+          if (child instanceof THREE.Mesh) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material]
+            child.castShadow = castsShadow(materials.map(material => material.name))
+            child.receiveShadow = true
+          }
+        })
         loaded.getObjectByName('Signal_Lens')?.traverse(child => {
           if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
             child.material = child.material.clone()
