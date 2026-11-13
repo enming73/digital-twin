@@ -1,17 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { glowOpacity, glowScale } from '../../src/scene/statusGlow'
+import { MAX_GLOW_SCALE, MIN_GLOW_SCALE, glowOpacity, glowScale } from '../../src/scene/statusGlow'
 
 describe('status light glow', () => {
-  it('glows brightest for a fault and dimmest for an idle machine', () => {
-    expect(glowOpacity('FAULT')).toBeGreaterThan(glowOpacity('RUNNING'))
-    expect(glowOpacity('RUNNING')).toBeGreaterThan(glowOpacity('IDLE'))
-    expect(glowOpacity('IDLE')).toBeGreaterThan(0)
-    expect(glowOpacity('FAULT')).toBeLessThanOrEqual(0.8)
+  it('follows the documented per-state table', () => {
+    expect(glowOpacity('FAULT')).toBeCloseTo(0.6, 5)
+    expect(glowOpacity('BLOCKED')).toBeCloseTo(0.52, 5)
+    expect(glowOpacity('STARVED')).toBeCloseTo(0.52, 5)
+    expect(glowOpacity('RUNNING')).toBeCloseTo(0.46, 5)
+    expect(glowOpacity('IDLE')).toBeCloseTo(0.12, 5)
+    expect(glowOpacity('UNKNOWN')).toBeCloseTo(0.12, 5)
+    expect(glowOpacity('')).toBeCloseTo(0.12, 5)
+    expect(glowScale('FAULT')).toBeCloseTo(0.46, 5)
+    expect(glowScale('RUNNING')).toBeCloseTo(0.4, 5)
+    expect(glowScale('IDLE')).toBeCloseTo(0.26, 5)
   })
 
-  it('keeps the halo small enough to read as a lamp, not a flare', () => {
-    expect(glowScale('FAULT')).toBeGreaterThan(glowScale('RUNNING'))
-    expect(glowScale('FAULT')).toBeLessThanOrEqual(0.7)
-    expect(glowScale('IDLE')).toBeGreaterThan(0)
+  it('stays between the lens width and the no-neon budget', () => {
+    for (const state of ['FAULT', 'BLOCKED', 'STARVED', 'RUNNING', 'IDLE', 'UNKNOWN', '']) {
+      expect(glowScale(state)).toBeGreaterThanOrEqual(MIN_GLOW_SCALE)
+      expect(glowScale(state)).toBeLessThanOrEqual(MAX_GLOW_SCALE)
+      expect(glowOpacity(state)).toBeGreaterThanOrEqual(0)
+      expect(glowOpacity(state)).toBeLessThanOrEqual(0.6)
+    }
+  })
+
+  it('orders the states by urgency', () => {
+    expect(glowOpacity('FAULT')).toBeGreaterThan(glowOpacity('STARVED'))
+    expect(glowOpacity('STARVED')).toBeGreaterThan(glowOpacity('RUNNING'))
+    expect(glowOpacity('RUNNING')).toBeGreaterThan(glowOpacity('IDLE'))
   })
 })

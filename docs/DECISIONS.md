@@ -82,6 +82,8 @@
 - Remote W4 boards keep the server-supplied `visual` interpolation and are outside this change; scenes containing them are skipped by the transfer model, and switching source clears any in-flight hops.
 
 ## v1.9 (2026-11-13)
-- Status lights use a small additive sprite halo (`src/scene/StatusGlow.tsx`), sized and brightened by station state: 0.68/0.64 m for FAULT, 0.58/0.56 for BLOCKED and STARVED, 0.51/0.50 for RUNNING, 0.24/0.29 for idle. The texture is a runtime radial gradient; nothing is downloaded.
-- A post-processing bloom was rejected for this: it would add render targets, tone-mapping handling and another quality switch for three small lamps, which is the cost the ambient-occlusion round already declined.
-- The halo is depth-tested and does not write depth, so machines occlude it and it never bleeds through the line. It is a visual cue only: no light is cast and exposure does not change.
+- The seven signal towers draw a soft sprite halo over the lens, sized and tinted by state: FAULT 0.60/0.46 m, BLOCKED and STARVED 0.52/0.42, RUNNING 0.46/0.40, idle 0.12/0.26. Texture is a runtime radial gradient; nothing is downloaded.
+- Normal blending, not additive: an additive halo clips to white on the pale backdrop, so the fault halo read as a white bloom. Depth testing stays on and depth writing is off, so machines occlude it; the sprite is not clickable.
+- `SIGNAL_LENS` is the single source for the authored lens position and a unit test asserts it against every GLB, so a future tower edit cannot leave the halo floating.
+- A post-processing bloom was rejected: render targets, tone-mapping handling and a quality switch for seven small lamps is the trade the ambient-occlusion round already declined.
+- The halo is a visual cue only: no light is cast, exposure does not change.

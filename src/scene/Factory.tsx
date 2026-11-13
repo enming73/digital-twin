@@ -15,6 +15,7 @@ import Floor from './Floor'
 import LightRig, { EXPOSURE } from './lighting'
 import { castsShadow } from './assetMaterials'
 import StatusGlow from './StatusGlow'
+import { SIGNAL_LENS } from './statusGlow'
 import { boardTarget, boardX, boardZ, updateTransfers, type Transfer } from './transfers'
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
@@ -122,7 +123,7 @@ function Machine({ station, machine, time, selected, onSelect, status }: { stati
   useEffect(() => () => label.dispose(), [label])
   return <group position={station.position} name={station.id} onClick={e => { e.stopPropagation(); onSelect() }}>
     <AssetShell station={station} machine={machine} time={time} selected={selected} state={status} />
-    <StatusGlow position={[1.01, 2.17, -0.65]} state={status} />
+    <StatusGlow position={SIGNAL_LENS} state={status} />
     {!machine && <Box position={[1.01, 2.3, -0.65]} size={[0.14, 0.14, 0.14]} color={signalColor(status)} />}
     {!selected && <sprite position={[0, 2.28, 0]} scale={[1.1, 0.275, 1]}><spriteMaterial map={label} /></sprite>}
   </group>

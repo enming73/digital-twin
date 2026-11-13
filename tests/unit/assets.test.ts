@@ -2,6 +2,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { artifactNames, stationAnchors } from '../../src/data/anchors'
 import { anchorOffsets } from '../../src/scene/anchors'
+import { SIGNAL_LENS } from '../../src/scene/statusGlow'
 
 type GlbNode = { name?: string; mesh?: number; children?: number[]; translation?: number[] }
 type GlbMaterial = {
@@ -194,6 +195,16 @@ describe('original Blender machine assets', () => {
           expect(high[2] + dz, `${kind} ${anchorName} crosses the door`).toBeLessThan(enclosure.zMax)
         }
       }
+    })
+  }
+
+  for (const name of artifactNames) {
+    it(`${name} places its signal lens where the status glow is drawn`, () => {
+      const json = glbJson(name)
+      const lens = json.nodes.find(node => node.name === 'Signal_Lens')
+      const mesh = lens?.children?.map(index => json.nodes[index]).find(node => node.mesh !== undefined)
+      const translation = mesh?.translation ?? []
+      for (let axis = 0; axis < 3; axis++) expect(translation[axis]).toBeCloseTo(SIGNAL_LENS[axis], 5)
     })
   }
 
