@@ -28,6 +28,7 @@ export default function App() {
   const [presentation] = useState(() => new Presentation(simulation))
   const [tourActive, setTourActive] = useState(false)
   const [liveSnapshot, setSnapshot] = useState(() => simulation.snapshot())
+  const [transferCount, setTransferCount] = useState(0)
   const [speed, setSpeed] = useState(1)
   const [selectedBoard, setSelectedBoard] = useState<string | null>(null)
   const [replayTime, setReplayTime] = useState<number | null>(null)
@@ -117,7 +118,7 @@ export default function App() {
     <main className="workspace">
       <section className="viewport" aria-label="3D factory view">
         <div className="viewport-heading"><div><div className="eyebrow"><span className="live-dot" /> FACTORY VIEW <span className="separator">/</span> LINE 01</div><h1>Production line<span>.</span></h1><p>A closer look at the electronics assembly process.</p></div><div className="scene-counter"><strong>07</strong><span>CONCEPTUAL<br />STATIONS</span></div></div>
-        <div className="scene" data-visible-boards={scene.boards.length}><SceneError><Suspense fallback={<div className="canvas-fallback">Loading factory scene…</div>}><Factory selected={selected} onSelect={setSelected} resetKey={resetKey} scene={scene} selectedBoard={selectedBoard} onSelectBoard={chooseBoard} /></Suspense></SceneError></div>
+        <div className="scene" data-visible-boards={scene.boards.length} data-transfers={transferCount}><SceneError><Suspense fallback={<div className="canvas-fallback">Loading factory scene…</div>}><Factory selected={selected} onSelect={setSelected} resetKey={resetKey} scene={scene} selectedBoard={selectedBoard} onSelectBoard={chooseBoard} onTransferCount={setTransferCount} /></Suspense></SceneError></div>
         <div className="view-actions"><div className="view-hint"><span>↖</span> DRAG TO ORBIT <i /> SCROLL TO ZOOM <i /> SELECT A STATION</div><button className="reset" onClick={reset} aria-label="Reset camera to factory overview"><span>↗</span> Reset view</button></div>
         <div className="viewport-footer"><span><b /> Illustrative animation · Not measured machine coordinates</span><span>SIMULATED FLOW <span className="separator">/</span> NO LIVE DATA</span></div>
       </section>

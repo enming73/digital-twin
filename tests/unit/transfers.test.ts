@@ -99,4 +99,8 @@ describe('interpolated x', () => {
   it('uses the target when no transfer is active', () => {
     expect(boardX(undefined, -6.3, 1000)).toBe(-6.3)
   })
+
+  it('lands on the target when the next poll arrives after the transfer ended', () => {
+    expect(boardX(transfer, -6.3, 1800)).toBeCloseTo(-6.3, 6)
+  })
 })
