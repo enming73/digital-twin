@@ -4,7 +4,32 @@ import { artifactNames, stationAnchors } from '../../src/data/anchors'
 
 type GlbNode = { name?: string; mesh?: number; children?: number[] }
 type GlbMaterial = { name?: string; alphaMode?: string; pbrMetallicRoughness?: { baseColorFactor?: number[] } }
-type GlbJson = { nodes: GlbNode[]; meshes: Array<{ primitives: Array<{ material?: number }> }>; materials?: GlbMaterial[] }
+type GlbJson = {
+  nodes: GlbNode[]
+  meshes: Array<{ primitives: Array<{ material?: number; attributes: { POSITION: number } }> }>
+  materials?: GlbMaterial[]
+  accessors: Array<{ min?: number[]; max?: number[] }>
+}
+
+/** Vertical extent of a node's meshes, seals included: must equal the specified leaf height. */
+function nodeHeight(json: GlbJson, nodeName: string): number {
+  const root = json.nodes.findIndex(node => node.name === nodeName)
+  let low = Infinity
+  let high = -Infinity
+  const walk = (index: number) => {
+    const node = json.nodes[index]
+    if (node.mesh !== undefined) {
+      for (const primitive of json.meshes[node.mesh].primitives) {
+        const accessor = json.accessors[primitive.attributes.POSITION]
+        low = Math.min(low, accessor.min?.[1] ?? low)
+        high = Math.max(high, accessor.max?.[1] ?? high)
+      }
+    }
+    for (const child of node.children ?? []) walk(child)
+  }
+  walk(root)
+  return high - low
+}
 
 function glbJson(name: string): GlbJson {
   const file = readFileSync(`public/models/${name}.glb`)
@@ -64,6 +89,15 @@ describe('original Blender machine assets', () => {
     const glass = glazingIndex(json, 'printer safety glass')
     for (const door of ['Vision_Door_L', 'Vision_Door_R']) expect(usedMaterials(json, door)).toContain(glass)
   })
+
+  for (const [kind, height] of [['mounter', 0.66], ['printer', 0.62], ['spi', 0.62], ['aoi', 0.62]] as const) {
+    it(`${kind} builds each door leaf to its specified ${height} m height`, () => {
+      const json = glbJson(kind)
+      for (const door of nodeNames(json).filter((nodeName): nodeName is string => /^Vision_Door(_[LR])?$/.test(nodeName ?? ''))) {
+        expect(Math.abs(nodeHeight(json, door) - height)).toBeLessThan(0.001)
+      }
+    })
+  }
 
   for (const kind of ['spi', 'aoi']) {
     it(`${kind} exports a framed inspection door and its own labelled panel`, () => {

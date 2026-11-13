@@ -173,7 +173,7 @@ def vision_door(mats, finish, cabinet, name, center_x, center_y, width, height, 
         box('Seal upright', (center_x + dx * .93, center_y, .98), (.014, height - .08, .018), finish['rubber'], door, .002)
     for dy in (-(height / 2 - .02), height / 2 - .02):
         box('Door crosspiece', (center_x, center_y + dy, .97), (width, .04, .065), trim, door, .004)
-        box('Seal crosspiece', (center_x, center_y + dy + (-.028 if dy < 0 else .028), .98), (width - .092, .012, .018), finish['rubber'], door, .002)
+        box('Seal crosspiece', (center_x, center_y + dy + (.028 if dy < 0 else -.028), .98), (width - .092, .012, .018), finish['rubber'], door, .002)
     box('Safety glazing', (center_x, center_y, .974), (width - .098, height - .088, .008), finish['glass'], door, 0)
     edge = center_x + (-(half - .011) if hinge_side == 'left' else half - .011)
     for offset in hardware['hinges']:
