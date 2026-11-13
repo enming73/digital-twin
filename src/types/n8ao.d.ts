@@ -12,6 +12,7 @@ declare module 'n8ao' {
       halfRes: boolean
       depthAwareUpsampling: boolean
       transparencyAware: boolean
+      gammaCorrection: boolean
     }
   }
 }
