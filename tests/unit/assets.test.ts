@@ -111,6 +111,19 @@ describe('original Blender machine assets', () => {
     }
   })
 
+  for (const [kind, title] of [['loader', 'LOAD / DEMO'], ['unloader', 'UNLOAD / DEMO']] as const) {
+    it(`${kind} exports a magazine guard door and its own labelled panel`, () => {
+      const json = glbJson(kind)
+      for (const name of ['Magazine_Door', 'Operator_Panel', 'HMI_Display', 'Emergency_Stop']) {
+        expect(nodeNames(json).filter(nodeName => nodeName === name)).toHaveLength(1)
+      }
+      const glass = glazingIndex(json, `${kind} safety glass`)
+      expect(usedMaterials(json, 'Magazine_Door')).toContain(glass)
+      expect(Math.abs(nodeHeight(json, 'Magazine_Door') - 0.52)).toBeLessThan(0.001)
+      expect(title).toMatch(/DEMO/)
+    })
+  }
+
   for (const kind of ['spi', 'aoi']) {
     it(`${kind} exports a framed inspection door and its own labelled panel`, () => {
       const json = glbJson(kind)

@@ -16,8 +16,9 @@ from mathutils import Vector
 ROOT = Path(__file__).resolve().parents[2]
 KINDS = ['loader', 'printer', 'spi', 'mounter', 'reflow', 'aoi', 'unloader']
 # Stations with the detailed glazed enclosure and operator panel.
-DETAILED = ('mounter', 'printer', 'spi', 'aoi', 'reflow')
-LABELS = {'mounter': 'Mounter', 'printer': 'Printer', 'spi': 'SPI', 'aoi': 'AOI', 'reflow': 'Reflow'}
+DETAILED = ('mounter', 'printer', 'spi', 'aoi', 'reflow', 'loader', 'unloader')
+LABELS = {'mounter': 'Mounter', 'printer': 'Printer', 'spi': 'SPI', 'aoi': 'AOI', 'reflow': 'Reflow',
+          'loader': 'Loader', 'unloader': 'Unloader'}
 # Anchor name -> (horizontal travel, lift) in metres, mirroring src/scene/anchors.ts.
 CLEARANCE = {
     'mounter': {'Gantry_X': (.45, 0), 'Gantry_Y': (.45, 0),
@@ -26,6 +27,9 @@ CLEARANCE = {
     'spi': {'Camera_Bridge': (.57, 0), 'Camera_Head': (0, -.05)},
     'aoi': {'Camera_Bridge': (.57, 0), 'Camera_Head': (0, -.05)},
     'reflow': {'Belt': (.36, 0), 'Zone_Shutter': (0, .03)},
+    # (x travel, y lift, z travel, floor): the loader's lift post passes through the cabinet.
+    'loader': {'Lift': (0, .18, 0, .70), 'Pusher': (0, .10, .10)},
+    'unloader': {'Lift': (0, .18, 0, .70), 'Pusher': (0, .10, .10)},
 }
 
 
@@ -237,7 +241,13 @@ LAYOUT = {
             'rows': (.22, .10, .16)},
     'reflow': {'doors': (), 'covers': (('Maintenance_Cover_A', -.78), ('Maintenance_Cover_B', .04)),
                'width': .78, 'height': .58, 'center_y': 1.52, 'title': 'REFLOW / DEMO',
-               'rows': (.16, .20, .12)},
+               'rows': (.16, .20, .12), 'window': (.30, .16), 'window_offset': -.12},
+    'loader': {'doors': (), 'covers': (('Magazine_Door', -.42),),
+               'width': 1.05, 'height': .52, 'center_y': 1.44, 'title': 'LOAD / DEMO',
+               'rows': (.20, .12, .16), 'window': (.34, .30)},
+    'unloader': {'doors': (), 'covers': (('Magazine_Door', -.42),),
+                 'width': 1.05, 'height': .52, 'center_y': 1.44, 'title': 'UNLOAD / DEMO',
+                 'rows': (.12, .18, .16), 'window': (.34, .30)},
 }
 
 
@@ -293,7 +303,15 @@ def detailed_enclosure(mats, cabinet, kind):
                     layout['width'], layout['height'], hinge_side, HARDWARE[kind])
     for name, center in layout.get('covers', ()):
         service_cover(mats, finish, cabinet, name, center, layout['center_y'],
-                      layout['width'], layout['height'], 'left' if center < 0 else 'right', (.30, .16), -.12)
+                      layout['width'], layout['height'], 'left' if center < 0 else 'right',
+                      layout.get('window', (.30, .16)), layout.get('window_offset', 0))
+    if kind in ('loader', 'unloader'):
+        # Close the front around the single guard door: header above it and infill up to the panel.
+        top = layout['center_y'] + layout['height'] / 2
+        box('Cladding header', (0, (top + 1.825) / 2, .965), (2.34, 1.825 - top, .03), paint, cabinet, .004)
+        door_right = layout['covers'][0][1] + layout['width'] / 2
+        box('Cladding infill', ((door_right + .76) / 2, layout['center_y'], .965),
+            (.76 - door_right, layout['height'], .03), paint, cabinet, .004)
     operator_panel(mats, finish, cabinet, .96, layout['title'], layout['rows'])
     return finish
 
@@ -319,7 +337,10 @@ def consolidate():
 def validate_clearance(kind, limits):
     """Check world-space envelope at all travel extrema before exporting."""
     bpy.context.view_layer.update()
-    for name, (travel, lift) in limits.items():
+    for name, values in limits.items():
+        travel, lift = values[0], values[1]
+        depth = values[2] if len(values) > 2 else 0
+        floor = values[3] if len(values) > 3 else 1.09
         anchor = bpy.data.objects[name]
         for obj in anchor.children_recursive:
             if obj.type != 'MESH':
@@ -329,9 +350,10 @@ def validate_clearance(kind, limits):
                 x, y, z = point.x, point.z, -point.y
                 for dx in (-travel, travel):
                     for dy in (0, lift):
-                        assert -1.17 < x + dx < 1.17, f'{name} crosses a side wall'
-                        assert 1.09 < y + dy < 1.82, f'{name} crosses roof/conveyor'
-                        assert -.83 < z < .95, f'{name} crosses back/door'
+                        for dz in ((-depth, depth) if depth else (0,)):
+                            assert -1.17 < x + dx < 1.17, f'{name} crosses a side wall'
+                            assert floor < y + dy < 1.82, f'{name} crosses roof/conveyor'
+                            assert -.83 < z + dz < .95, f'{name} crosses back/door'
     print(f'{kind} motion envelope: clear of enclosure at all extrema')
 
 
@@ -422,12 +444,12 @@ def loader_parts(mats):
     _, trim, _, metal, _, _ = mats
     magazine = group('Magazine')
     for x in (-.45, .45):
-        box('Magazine wall', (x, 1.30, .96), (.06, .62, .18), metal, magazine)
-    box('Magazine back', (0, 1.30, .90), (.92, .62, .04), trim, magazine)
+        box('Magazine wall', (x, 1.30, .48), (.06, .62, .18), metal, magazine)
+    box('Magazine back', (0, 1.30, .42), (.92, .62, .04), trim, magazine)
     lift = group('Lift')
-    box('Lift platform', (0, 1.10, .96), (.86, .05, .20), metal, lift)
-    box('Lift post', (0, .95, .90), (.07, .35, .06), trim, lift, .004)
-    box('Pusher bar', (0, 1.30, 1.06), (.90, .06, .04), trim, group('Pusher'), .003)
+    box('Lift platform', (0, 1.10, .48), (.86, .05, .20), metal, lift)
+    box('Lift post', (0, .95, .42), (.07, .35, .06), trim, lift, .004)
+    box('Pusher bar', (0, 1.30, .62), (.90, .06, .04), trim, group('Pusher'), .003)
 
 
 def build(kind):
