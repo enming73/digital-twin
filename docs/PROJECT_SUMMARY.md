@@ -16,7 +16,7 @@ Project: SMT Digital Twin Studio — synthetic, browser-first SMT line concept d
 - Production insights: throughput, WIP, average cycle time, pass rate, completion histogram, alerts and board trace.
 - Simulated mounter fault injection/recovery and read-only event-log replay.
 - Guided 3½-minute presentation with scripted camera presets and a KPI summary.
-- Two original Blender scenes and browser GLBs with procedural fallbacks; procedural mechanisms remain the animation/selection layer.
+- Seven original Blender scenes and browser GLBs built by one pipeline, with a procedural fallback when a model fails to load. Named anchor nodes in each GLB are animated from the simulation snapshot; see the addendum in section 8 for the 2026-11-13 rebuild.
 - Vitest unit tests, Playwright smoke/E2E tests and a software-rendered performance diagnostic.
 
 ### Industrial integration track (W1–W6)
@@ -102,7 +102,7 @@ Open `http://127.0.0.1:4174/`, select **Remote W3 · read only**, look up `board
 - W6 `terminalVerified` is in-memory and re-verified after restart with a new epoch. Source data is retained until quota limits; recovery is not disk-loss recovery.
 - Remote W4 motion, queue state and machine mechanisms are illustrative. A nonstandard station order is not discoverable from W3 snapshots.
 - W5 supports only linear routing; rework, skipped stations and repeated inspections are rejected.
-- Browser-demo transfers are instantaneous and cross-station PCB jumps remain a visual gap. The W1 audit did not prove five distinct complete machine models; five stations share procedural shells. GLB motion anchors are placeholders; no LOD variants.
+- Browser-demo transfers are instantaneous and cross-station PCB jumps remain a visual gap. All seven stations now use distinct Blender-built GLBs with live motion anchors; the W1 audit that recorded shared procedural shells predates that rebuild. No LOD variants.
 - Performance figures are software-rendered diagnostics on one host, not GPU or target-hardware acceptance.
 - Replay logs are in memory; export/import is not implemented.
 - The bundle size warning and dependency advisories remain.
@@ -117,6 +117,8 @@ The roadmap is complete, so further work needs a new agreed scope. Likely candid
 4. Frontend polish: cross-station transfer animation, GLB node animation, LOD variants, code splitting and dependency upgrades.
 5. Operational tooling: retention/compaction policy, backup/restore runbook, monitoring dashboards built on `/api/metrics`.
 
+The visual candidates from the 2026-11-13 rebuild — board transfer animation, status-light glow, reflow zone visuals, set dressing, LODs and the deferred review minors — are costed in [`FOLLOW_UPS.md`](FOLLOW_UPS.md).
+
 ## 7. Evidence index
 
 - [`PROJECT_PLAN.md`](PROJECT_PLAN.md) — browser-demo plan.
@@ -129,3 +131,16 @@ The roadmap is complete, so further work needs a new agreed scope. Likely candid
 - [`ARCHITECTURE.md`](ARCHITECTURE.md), [`EVENT_CONTRACT.md`](EVENT_CONTRACT.md), [`DECISIONS.md`](DECISIONS.md) — architecture, contract and decisions.
 - [`ACCEPTANCE.md`](ACCEPTANCE.md) — browser-demo acceptance checklists.
 - [`../README.md`](../README.md) — current setup, commands, API and limitations.
+
+## 8. Addendum: visual rebuild (2026-11-13)
+
+Sections 1–7 were written on 2026-11-10 and are kept as the handover record of the simulation and integration tracks. Since then the browser demo's assets and rendering were rebuilt:
+
+- **Seven-station asset pipeline** — `assets/blender/generate_models.py` emits one `.blend` and one `.glb` per station with a fixed anchor contract, export-time geometry guards and per-station layout data. Per-station reports:
+  [`MOUNTER_SAMPLE_REPORT.md`](MOUNTER_SAMPLE_REPORT.md) ·
+  [`PRINTER_INSPECTION_ROLLOUT_REPORT.md`](PRINTER_INSPECTION_ROLLOUT_REPORT.md) ·
+  [`REFLOW_LOADER_ROLLOUT_REPORT.md`](REFLOW_LOADER_ROLLOUT_REPORT.md).
+- **Rendering** — authored showroom lighting with a blurred planar floor reflection, and a matte powder coat in all seven assets. Ambient occlusion was built, measured and removed; the reasoning and the traps are in [`MATERIALS_AO_REPORT.md`](MATERIALS_AO_REPORT.md) and [`DECISIONS.md`](DECISIONS.md) v1.2–v1.6.
+- **What this supersedes** — the "two Blender scenes" and "five stations share procedural shells" statements above, and the W1 audit's shared-shell finding. The W1 records themselves are historical and are not rewritten.
+- **What is unchanged** — the simulator, replay semantics, camera presets, backend, event contract and all W2–W6 behaviour. Remote views still render the models statically.
+- **Next candidates** — [`FOLLOW_UPS.md`](FOLLOW_UPS.md).
