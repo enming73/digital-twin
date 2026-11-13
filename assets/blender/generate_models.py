@@ -23,6 +23,8 @@ CLEARANCE = {
     'mounter': {'Gantry_X': (.45, 0), 'Gantry_Y': (.45, 0),
                 'Placement_Head': (.45, -.12), 'Feeders': (0, .01)},
     'printer': {'Squeegee': (.48, 0), 'Clamp': (0, .02)},
+    'spi': {'Camera_Bridge': (.57, 0), 'Camera_Head': (0, -.05)},
+    'aoi': {'Camera_Bridge': (.57, 0), 'Camera_Head': (0, -.05)},
 }
 
 
@@ -184,7 +186,7 @@ def vision_door(mats, finish, cabinet, name, center_x, center_y, width, height, 
     return door
 
 
-def operator_panel(mats, finish, cabinet, x, title):
+def operator_panel(mats, finish, cabinet, x, title, rows):
     """Side-mounted HMI and physical controls; content is a static illustration."""
     paint, trim, _, metal, _, white = mats
     panel = group('Operator_Panel', cabinet)
@@ -194,7 +196,7 @@ def operator_panel(mats, finish, cabinet, x, title):
     box('HMI bezel', (x, 1.65, 1.041), (.304, .253, .026), trim, display, .009)
     box('HMI screen', (x, 1.65, 1.056), (.260, .204, .005), finish['screen'], display, .002)
     panel_text('SIMULATED', (x, 1.715, 1.061), .027, white, display)
-    for i, width in enumerate((.19, .13, .16)):
+    for i, width in enumerate(rows):
         box('HMI status row', (x, 1.676 - i * .035, 1.061), (width, .009, .002), finish['ink'], display, 0)
     panel_text(title, (x, 1.563, 1.061), .019, white, display)
     for offset, label, mat in ((-.11, 'START', finish['green']), (0, 'STOP', trim), (.11, 'RESET', white)):
@@ -214,11 +216,22 @@ HARDWARE = {
     'mounter': {'hinges': (-.21, .20), 'handle_feet': (-.10, .07), 'handle_center': -.015, 'handle_length': .19},
     'printer': {'hinges': (-.20, .19), 'handle_feet': (-.095, .065), 'handle_center': -.014, 'handle_length': .18},
 }
+HARDWARE['spi'] = HARDWARE['aoi'] = HARDWARE['printer']
 
-# Per-station opening layout: door leaves and the shared operator panel.
+# Per-station opening layout: named door leaves and the shared operator panel.
 LAYOUT = {
-    'mounter': {'doors': (('L', -.685), ('R', .245)), 'width': .922, 'height': .66, 'center_y': 1.51, 'title': 'SMT / DEMO'},
-    'printer': {'doors': (('L', -.68), ('R', .228)), 'width': .90, 'height': .62, 'center_y': 1.48, 'title': 'PRINT / DEMO'},
+    'mounter': {'doors': (('Vision_Door_L', -.685, 'left'), ('Vision_Door_R', .245, 'right')),
+                'width': .922, 'height': .66, 'center_y': 1.51, 'title': 'SMT / DEMO',
+                'rows': (.19, .13, .16)},
+    'printer': {'doors': (('Vision_Door_L', -.68, 'left'), ('Vision_Door_R', .228, 'right')),
+                'width': .90, 'height': .62, 'center_y': 1.48, 'title': 'PRINT / DEMO',
+                'rows': (.19, .13, .16)},
+    'spi': {'doors': (('Vision_Door', -.23, 'left'),),
+            'width': 1.80, 'height': .62, 'center_y': 1.50, 'title': 'SPI / DEMO',
+            'rows': (.10, .22, .16)},
+    'aoi': {'doors': (('Vision_Door', -.23, 'left'),),
+            'width': 1.80, 'height': .62, 'center_y': 1.50, 'title': 'AOI / DEMO',
+            'rows': (.22, .10, .16)},
 }
 
 
@@ -233,11 +246,10 @@ def detailed_enclosure(mats, cabinet, kind):
     box('Window sill', (0, 1.15, .96), (2.46, .08, .10), metal, cabinet)
 
     layout = LAYOUT[kind]
-    for index, (side, center) in enumerate(layout['doors']):
-        hinge_side = 'left' if index == 0 else 'right'
-        vision_door(mats, finish, cabinet, f'Vision_Door_{side}', center, layout['center_y'],
+    for name, center, hinge_side in layout['doors']:
+        vision_door(mats, finish, cabinet, name, center, layout['center_y'],
                     layout['width'], layout['height'], hinge_side, HARDWARE[kind])
-    operator_panel(mats, finish, cabinet, .96, layout['title'])
+    operator_panel(mats, finish, cabinet, .96, layout['title'], layout['rows'])
     return finish
 
 
@@ -285,6 +297,9 @@ def world_bounds(objects):
 
 def validate_door_seams(kind):
     """Two leaves must read as two doors: a real seam, not one merged mullion."""
+    if 'Vision_Door_L' not in bpy.data.objects:
+        print(f'{kind} uses a single observation door: no leaf seam to check')
+        return
     left = bpy.data.objects['Vision_Door_L']
     right = bpy.data.objects['Vision_Door_R']
     left_inner = max(point.x for point in world_bounds(left.children_recursive))
@@ -334,13 +349,13 @@ def mounter_parts(mats):
         box('Feeder slot', (-.70 + .20 * i, 1.30, .76), (.09, .05, .10), metal, feeders, .002)
 
 
-def camera_parts(mats):
+def camera_parts(mats, kind):
     _, trim, glass, metal, _, _ = mats
     bridge = group('Camera_Bridge')
-    box('Bridge beam', (0, 1.62, .95), (1.45, .08, .10), metal, bridge)
+    box('Bridge beam', (0, 1.62, .60), (1.16, .08, .10), metal, bridge)
     head = group('Camera_Head')
-    box('Camera body', (0, 1.49, .95), (.16, .18, .12), trim, head)
-    box('Camera lens', (0, 1.39, .95), (.09, .09, .09), glass, head, .004)
+    box('Camera body', (0, 1.49, .60), (.16, .18, .12), trim, head)
+    box('Camera lens', (0, 1.39, .60), (.09, .09, .09), glass, head, .004)
 
 
 def reflow_parts(mats):
@@ -380,9 +395,11 @@ def build(kind):
         material('Plaque white', (.82, .84, .80), .10, .62),
     )
     shell(mats, kind)
-    {'printer': printer_parts, 'mounter': mounter_parts, 'spi': camera_parts,
-     'aoi': camera_parts, 'reflow': reflow_parts, 'loader': loader_parts,
-      'unloader': loader_parts}[kind](mats)
+    if kind in ('spi', 'aoi'):
+        camera_parts(mats, kind)
+    else:
+        {'printer': printer_parts, 'mounter': mounter_parts, 'reflow': reflow_parts,
+         'loader': loader_parts, 'unloader': loader_parts}[kind](mats)
     if kind in DETAILED:
         validate_clearance(kind, CLEARANCE[kind])
         validate_door_seams(kind)

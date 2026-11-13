@@ -65,6 +65,17 @@ describe('original Blender machine assets', () => {
     for (const door of ['Vision_Door_L', 'Vision_Door_R']) expect(usedMaterials(json, door)).toContain(glass)
   })
 
+  for (const kind of ['spi', 'aoi']) {
+    it(`${kind} exports a framed inspection door and its own labelled panel`, () => {
+      const json = glbJson(kind)
+      for (const name of ['Vision_Door', 'Operator_Panel', 'HMI_Display', 'Emergency_Stop']) {
+        expect(nodeNames(json).filter(nodeName => nodeName === name)).toHaveLength(1)
+      }
+      const glass = glazingIndex(json, `${kind} safety glass`)
+      expect(usedMaterials(json, 'Vision_Door')).toContain(glass)
+    })
+  }
+
   for (const name of artifactNames) {
     it(`${name} has a Blender source and a GLB carrying its anchor contract`, () => {
       const blend = readFileSync(`assets/blender/${name}.blend`)

@@ -4,7 +4,8 @@
  * are named `<kind> safety glass`; the mounter's capitalised sample name stays supported.
  */
 export function isGlazing(materialName: string): boolean {
-  return materialName.toLowerCase().endsWith('safety glass')
+  // Blender deduplicates repeated names with a `.001` suffix when stations share one export.
+  return materialName.replace(/\.\d+$/, '').toLowerCase().endsWith('safety glass')
 }
 
 /** Whether a loaded mesh should cast a shadow, judged by every material slot it uses. */
