@@ -6,8 +6,8 @@ Date: 2026-11-13. Branch: `v15-reflow-loaders`. **Awaiting user visual acceptanc
 
 The last three stations now share the other four's construction vocabulary, but not their window treatment: the oven is insulated cladding with small inspection apertures, the loaders are a clad guard door over the magazine.
 
-- **Reflow oven** — two 0.78 × 0.58 m maintenance covers with 0.30 × 0.16 m heat-resistant windows, frames, hinges and latches, over a taller insulated shell. The tunnel's front wall was removed so the apertures look into the cavity (dark liner behind); belt cleats now run inside at z 0.02 and the zone shutters sit at z 0.60.
-- **Loader / unloader** — one 1.05 × 0.52 m guard door with a 0.34 × 0.30 m window, plus a cladding header and infill closing the rest of the front up to the operator panel. Magazine, lift platform and pusher moved to z 0.48–0.62, behind the door.
+- **Reflow oven** — two 0.78 × 0.58 m maintenance covers with 0.30 × 0.16 m heat-resistant windows, frames, hinges and latches, over a taller insulated shell. The apertures sit on the belt line (window band 1.26–1.42 m), so the cleats and passing boards are visible; the tunnel's front wall was removed so the windows look into the cavity (dark liner behind). Belt cleats run inside at z 0.02 and the zone shutters sit at z 0.60.
+- **Loader / unloader** — one 1.05 × 0.52 m guard door at the line centre with a 0.34 × 0.30 m window over the magazine, which now has visible shelves. Cladding headers and infills close the front on both sides of the door and up to the operator panel. Magazine, lift platform and pusher moved to z 0.48–0.62, behind the door.
 - Panels: `REFLOW / DEMO`, `LOAD / DEMO`, `UNLOAD / DEMO`, all `SIMULATED`, with per-station status rows.
 - Shared `service_cover()` builder; the four earlier stations are byte-identical and still build from the same helpers.
 
@@ -25,7 +25,7 @@ Select **Reflow Oven**, **PCB Loader** or **PCB Unloader**; add `?quality=low` f
 
 Reflow: [running](screenshots/reflow-loader/reflow-running.png). Loaders: [before](screenshots/reflow-loader/before-loader.png) → [loader](screenshots/reflow-loader/loader.png), [unloader](screenshots/reflow-loader/unloader.png), [low quality](screenshots/reflow-loader/low-loader.png), [orbited](screenshots/reflow-loader/oblique.png).
 
-Inspected at 1600×900 in headless Chromium/SwiftShader: the oven reads as insulated cladding with two small lit apertures rather than a glazed box; both loader doors show the magazine through their window with the header/infill closing the front; HMI labels legible; no console or page errors in any capture session.
+Inspected at 1600×900 in headless Chromium/SwiftShader: the oven reads as insulated cladding with two small apertures on the belt line rather than a glazed box; both loader doors show the magazine's shelves through their window, with the front closed on both sides; HMI labels legible; no console or page errors in any capture session.
 
 ## Reproduction and checks
 
@@ -70,3 +70,4 @@ The clearance table now carries optional per-station z travel and a floor bound:
 - Belt cleats dropped from six to five at the same 0.36 m pitch: six cleats plus the +0.36 m cycle offset reached 1.285 m, through the new side wall.
 - No AO, post-processing, material overhaul, simulation, camera or backend changes.
 - The branch is based on `v14-printer-inspection` (PR #11), not `main`, because it uses that round's shared builders.
+- Review found a visible 0.225 × 0.52 m open bay beside the loader door, a loader window pointing past the magazine, and a reflow window that cut off the belt line. All three are fixed; the generator now asserts that the belt line sits inside the oven aperture and that each loader window is within 0.25 m of the magazine centre, and both assertions were watched failing on the old geometry before the fix.

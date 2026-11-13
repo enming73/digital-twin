@@ -241,11 +241,11 @@ LAYOUT = {
             'rows': (.22, .10, .16)},
     'reflow': {'doors': (), 'covers': (('Maintenance_Cover_A', -.78), ('Maintenance_Cover_B', .04)),
                'width': .78, 'height': .58, 'center_y': 1.52, 'title': 'REFLOW / DEMO',
-               'rows': (.16, .20, .12), 'window': (.30, .16), 'window_offset': -.12},
-    'loader': {'doors': (), 'covers': (('Magazine_Door', -.42),),
+               'rows': (.16, .20, .12), 'window': (.30, .16), 'window_offset': -.18},
+    'loader': {'doors': (), 'covers': (('Magazine_Door', 0),),
                'width': 1.05, 'height': .52, 'center_y': 1.44, 'title': 'LOAD / DEMO',
                'rows': (.20, .12, .16), 'window': (.34, .30)},
-    'unloader': {'doors': (), 'covers': (('Magazine_Door', -.42),),
+    'unloader': {'doors': (), 'covers': (('Magazine_Door', 0),),
                  'width': 1.05, 'height': .52, 'center_y': 1.44, 'title': 'UNLOAD / DEMO',
                  'rows': (.12, .18, .16), 'window': (.34, .30)},
 }
@@ -306,10 +306,13 @@ def detailed_enclosure(mats, cabinet, kind):
                       layout['width'], layout['height'], 'left' if center < 0 else 'right',
                       layout.get('window', (.30, .16)), layout.get('window_offset', 0))
     if kind in ('loader', 'unloader'):
-        # Close the front around the single guard door: header above it and infill up to the panel.
+        # Close the front on both sides of the guard door and above it, up to the operator panel.
         top = layout['center_y'] + layout['height'] / 2
         box('Cladding header', (0, (top + 1.825) / 2, .965), (2.34, 1.825 - top, .03), paint, cabinet, .004)
+        door_left = layout['covers'][0][1] - layout['width'] / 2
         door_right = layout['covers'][0][1] + layout['width'] / 2
+        box('Cladding infill', ((-1.17 + door_left) / 2, layout['center_y'], .965),
+            (door_left + 1.17, layout['height'], .03), paint, cabinet, .004)
         box('Cladding infill', ((door_right + .76) / 2, layout['center_y'], .965),
             (.76 - door_right, layout['height'], .03), paint, cabinet, .004)
     operator_panel(mats, finish, cabinet, .96, layout['title'], layout['rows'])
@@ -374,6 +377,31 @@ def validate_door_seams(kind):
     gap = right_inner - left_inner
     assert gap >= .006, f'{kind} door leaves overlap or touch (gap {gap * 1000:.1f} mm)'
     print(f'{kind} door seam between leaves: {gap * 1000:.1f} mm')
+
+
+def validate_window_reveal(kind):
+    """The aperture must show the moving part, not the frame or a side wall."""
+    glass = [obj for obj in bpy.context.scene.objects
+             if obj.type == 'MESH' and any(mat.name.lower().endswith('safety glass') for mat in obj.data.materials)]
+    if not glass:
+        return
+    low = min(point.z for point in world_bounds(glass))
+    high = max(point.z for point in world_bounds(glass))
+    left = min(point.x for point in world_bounds(glass))
+    right = max(point.x for point in world_bounds(glass))
+    if kind == 'reflow':
+        belt = bpy.data.objects['Belt']
+        centre = (min(point.z for point in world_bounds(belt.children_recursive))
+                  + max(point.z for point in world_bounds(belt.children_recursive))) / 2
+        assert low < centre < high, f'reflow belt line {centre:.3f} is outside the window band {low:.3f}..{high:.3f}'
+        print(f'reflow belt line {centre:.3f} m sits inside the aperture {low:.3f}..{high:.3f} m')
+    if kind in ('loader', 'unloader'):
+        magazine = bpy.data.objects['Magazine']
+        centre = (min(point.x for point in world_bounds(magazine.children_recursive))
+                  + max(point.x for point in world_bounds(magazine.children_recursive))) / 2
+        window = (left + right) / 2
+        assert abs(window - centre) < .25, f'{kind} window centre {window:.3f} is off the magazine centre {centre:.3f}'
+        print(f'{kind} window centre {window:.3f} m is within 0.25 m of the magazine centre')
 
 
 def validate_roof_vents(kind):
@@ -446,6 +474,8 @@ def loader_parts(mats):
     for x in (-.45, .45):
         box('Magazine wall', (x, 1.30, .48), (.06, .62, .18), metal, magazine)
     box('Magazine back', (0, 1.30, .42), (.92, .62, .04), trim, magazine)
+    for i in range(3):
+        box('Magazine shelf', (0, 1.12 + i * .18, .48), (.84, .012, .16), metal, magazine, .002)
     lift = group('Lift')
     box('Lift platform', (0, 1.10, .48), (.86, .05, .20), metal, lift)
     box('Lift post', (0, .95, .42), (.07, .35, .06), trim, lift, .004)
@@ -471,6 +501,7 @@ def build(kind):
     if kind in DETAILED:
         validate_clearance(kind, CLEARANCE[kind])
         validate_door_seams(kind)
+        validate_window_reveal(kind)
         validate_roof_vents(kind)
         consolidate()
     bpy.context.scene['provenance'] = f'Original generic conceptual SMT machine ({kind}); no proprietary geometry.'
