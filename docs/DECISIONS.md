@@ -80,3 +80,8 @@
 - A hop starts at the poll that discovers the move, from where the board was last drawn, because the engine's transfer event is not exposed to the scene. x and z are both eased, so entering a queue neither jogs backwards nor snaps sideways. The model can lead the picture by up to one poll; the hop itself always lasts at least two polls.
 - Boards travel on the real conveyor line (`z 0.12`), so most of a hop is hidden inside the machine enclosures. Routing them in front of the cabinets was rejected as physically wrong.
 - Remote W4 boards keep the server-supplied `visual` interpolation and are outside this change; scenes containing them are skipped by the transfer model, and switching source clears any in-flight hops.
+
+## v1.9 (2026-11-13)
+- Status lights use a small additive sprite halo (`src/scene/StatusGlow.tsx`), sized and brightened by station state: 0.68/0.64 m for FAULT, 0.58/0.56 for BLOCKED and STARVED, 0.51/0.50 for RUNNING, 0.24/0.29 for idle. The texture is a runtime radial gradient; nothing is downloaded.
+- A post-processing bloom was rejected for this: it would add render targets, tone-mapping handling and another quality switch for three small lamps, which is the cost the ambient-occlusion round already declined.
+- The halo is depth-tested and does not write depth, so machines occlude it and it never bleeds through the line. It is a visual cue only: no light is cast and exposure does not change.
