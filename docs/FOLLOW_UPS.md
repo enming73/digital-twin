@@ -69,9 +69,9 @@ State this list assumes:
 
 **Depends on:** item 4 benefits from it.
 
-## 6. Deferred review minors (small, concrete)
+## 6. Deferred review minors (cleared 2026-11-13)
 
-These were recorded during the three rollout reviews and are cheap to clear in one pass:
+These were recorded during the three rollout reviews and cleared in one pass; the list is kept for traceability. Cladding is now derived from each layout (`fill_front`), covers have a centre stile and a sealed header/base, window frames stand proud of the panel face, hinges clear the side wall, the `Pusher` clearance tuple only carries its z travel, the seam validator reads leaf names from `LAYOUT`, the powder-coat contract runs on all seven exports, CI now asserts the travel envelope for every station from the GLB accessors, and the browser console guard walks all seven stations.
 
 - Reflow covers leave 10–40 mm unsealed slots against the header and between leaves.
 - Cover window frame trim sits inside the panel thickness, so it does not read as a surround.

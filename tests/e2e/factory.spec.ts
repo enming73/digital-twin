@@ -54,8 +54,19 @@ test('renders the scene without console errors or cross-origin requests', async 
   await expect(page.locator('canvas')).toBeVisible()
   await page.waitForTimeout(1500)
   await page.screenshot({ path: 'test-results/v12-overview.png', animations: 'disabled' })
-  await page.getByRole('button', { name: /Pick & Place/ }).click()
-  await page.waitForTimeout(1200)
+  for (const station of [
+    'Solder Paste Printer',
+    'Solder Paste Inspection',
+    'Pick & Place',
+    'Reflow Oven',
+    'Automated Optical Inspection',
+    'PCB Loader',
+    'PCB Unloader',
+  ]) {
+    await page.getByRole('button', { name: new RegExp(station) }).click()
+    await expect(page.getByRole('heading', { name: station })).toBeVisible()
+    await page.waitForTimeout(800)
+  }
   await page.screenshot({ path: 'test-results/v12-closeup.png', animations: 'disabled' })
   expect(external).toEqual([])
   expect(errors).toEqual([])

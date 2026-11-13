@@ -17,6 +17,11 @@ ROOT = Path(__file__).resolve().parents[2]
 KINDS = ['loader', 'printer', 'spi', 'mounter', 'reflow', 'aoi', 'unloader']
 # Stations with the detailed glazed enclosure and operator panel.
 DETAILED = ('mounter', 'printer', 'spi', 'aoi', 'reflow', 'loader', 'unloader')
+FRONT_Z = .965      # face of the doors, covers and cladding
+SIDE_INNER = 1.17   # inner face of the enclosure side panels
+PANEL_LEFT = .76    # left edge of the operator housing
+ROOF_BOTTOM = {'reflow': 1.965}
+DEFAULT_ROOF_BOTTOM = 1.825
 LABELS = {'mounter': 'Mounter', 'printer': 'Printer', 'spi': 'SPI', 'aoi': 'AOI', 'reflow': 'Reflow',
           'loader': 'Loader', 'unloader': 'Unloader'}
 # Anchor name -> (horizontal travel, lift) in metres, mirroring src/scene/anchors.ts.
@@ -28,8 +33,8 @@ CLEARANCE = {
     'aoi': {'Camera_Bridge': (.57, 0), 'Camera_Head': (0, -.05)},
     'reflow': {'Belt': (.36, 0), 'Zone_Shutter': (0, .03)},
     # (x travel, y lift, z travel, floor): the loader's lift post passes through the cabinet.
-    'loader': {'Lift': (0, .18, 0, .70), 'Pusher': (0, .10, .10)},
-    'unloader': {'Lift': (0, .18, 0, .70), 'Pusher': (0, .10, .10)},
+    'loader': {'Lift': (0, .18, 0, .70), 'Pusher': (0, 0, .10)},
+    'unloader': {'Lift': (0, .18, 0, .70), 'Pusher': (0, 0, .10)},
 }
 
 
@@ -264,16 +269,40 @@ def service_cover(mats, finish, cabinet, name, center_x, center_y, width, height
     box('Cover panel', (center_x, (top_window + center_y + height / 2) / 2, .965), (window_width, center_y + height / 2 - top_window, .03), paint, cover, .004)
     box('Cover panel', (center_x, (bottom_window + center_y - height / 2) / 2, .965), (window_width, bottom_window - (center_y - height / 2), .03), paint, cover, .004)
     for dx in (-(window_width / 2 + .012), window_width / 2 + .012):
-        box('Window frame', (center_x + dx, window_y, .967), (.024, window_height + .048, .012), trim, cover, .003)
+        box('Window frame', (center_x + dx, window_y, FRONT_Z + .016), (.024, window_height + .048, .012), trim, cover, .003)
     for dy in (-(window_height / 2 + .012), window_height / 2 + .012):
-        box('Window frame', (center_x, window_y + dy, .967), (window_width, .024, .012), trim, cover, .003)
+        box('Window frame', (center_x, window_y + dy, FRONT_Z + .016), (window_width, .024, .012), trim, cover, .003)
     box('Cover glazing', (center_x, window_y, .962), (window_width, window_height, .008), finish['glass'], cover, 0)
-    edge = center_x + (-(width / 2 - .02) if hinge_side == 'left' else width / 2 - .02)
+    edge = center_x + (-(width / 2 - .05) if hinge_side == 'left' else width / 2 - .05)
     for offset in (-.18, .18):
         box('Cover hinge', (edge, center_y + offset, .99), (.07, .06, .014), metal, cover, .003)
     latch_x = center_x + ((width / 2 - .06) if hinge_side == 'left' else -(width / 2 - .06))
     box('Cover latch', (latch_x, center_y, .995), (.06, .10, .02), trim, cover, .004)
     return cover
+
+
+def fill_front(mats, cabinet, layout, roof_bottom):
+    """Close the front around the covers, deriving every panel from the layout instead of literals."""
+    paint = mats[0]
+    center_y = layout['center_y']
+    height = layout['height']
+    half_height = height / 2
+    covers = sorted((center - layout['width'] / 2, center + layout['width'] / 2) for _, center in layout['covers'])
+    left, right = covers[0][0], covers[-1][1]
+
+    header = roof_bottom - (center_y + half_height)
+    if header > .004:
+        box('Cladding header', (0, (center_y + half_height + roof_bottom) / 2, FRONT_Z), (SIDE_INNER * 2, header, .03), paint, cabinet, .004)
+    base = (center_y - half_height) - 1.19
+    if base > .004:
+        box('Cladding base', (0, (1.19 + center_y - half_height) / 2, FRONT_Z), (SIDE_INNER * 2, base, .03), paint, cabinet, .004)
+    if left - (-SIDE_INNER) > .004:
+        box('Cladding infill', ((-SIDE_INNER + left) / 2, center_y, FRONT_Z), (left + SIDE_INNER, height, .03), paint, cabinet, .004)
+    if PANEL_LEFT - right > .004:
+        box('Cladding infill', ((right + PANEL_LEFT) / 2, center_y, FRONT_Z), (PANEL_LEFT - right, height, .03), paint, cabinet, .004)
+    for left_edge, right_edge in zip(covers, covers[1:]):
+        gap = right_edge[0] - left_edge[1]
+        box('Cladding stile', ((left_edge[1] + right_edge[0]) / 2, center_y, FRONT_Z), (gap + .004, height, .03), paint, cabinet, .004)
 
 
 def detailed_enclosure(mats, cabinet, kind):
@@ -288,9 +317,7 @@ def detailed_enclosure(mats, cabinet, kind):
         for x in (-1.205, 1.205):
             box('Enclosure side', (x, 1.52, 0), (.07, .96, 1.80), paint, cabinet)
         box('Window sill', (0, 1.15, .96), (2.46, .08, .10), metal, cabinet)
-        box('Cladding header', (0, 1.90, .965), (2.34, .16, .03), paint, cabinet, .004)
-        box('Cladding base', (0, 1.19, .965), (2.34, .08, .03), paint, cabinet, .004)
-        box('Cladding infill', (.595, 1.52, .965), (.33, .58, .03), paint, cabinet, .004)
+        fill_front(mats, cabinet, layout, ROOF_BOTTOM['reflow'])
     else:
         box('Enclosure roof', (0, 1.86, 0), (2.48, .07, 1.90), paint, cabinet)
         box('Enclosure back', (0, 1.46, -.87), (2.48, .73, .06), paint, cabinet)
@@ -306,15 +333,7 @@ def detailed_enclosure(mats, cabinet, kind):
                       layout['width'], layout['height'], 'left' if center < 0 else 'right',
                       layout.get('window', (.30, .16)), layout.get('window_offset', 0))
     if kind in ('loader', 'unloader'):
-        # Close the front on both sides of the guard door and above it, up to the operator panel.
-        top = layout['center_y'] + layout['height'] / 2
-        box('Cladding header', (0, (top + 1.825) / 2, .965), (2.34, 1.825 - top, .03), paint, cabinet, .004)
-        door_left = layout['covers'][0][1] - layout['width'] / 2
-        door_right = layout['covers'][0][1] + layout['width'] / 2
-        box('Cladding infill', ((-1.17 + door_left) / 2, layout['center_y'], .965),
-            (door_left + 1.17, layout['height'], .03), paint, cabinet, .004)
-        box('Cladding infill', ((door_right + .76) / 2, layout['center_y'], .965),
-            (.76 - door_right, layout['height'], .03), paint, cabinet, .004)
+        fill_front(mats, cabinet, layout, DEFAULT_ROOF_BOTTOM)
     operator_panel(mats, finish, cabinet, .96, layout['title'], layout['rows'])
     return finish
 
@@ -367,11 +386,12 @@ def world_bounds(objects):
 
 def validate_door_seams(kind):
     """Two leaves must read as two doors: a real seam, not one merged mullion."""
-    if 'Vision_Door_L' not in bpy.data.objects:
+    names = [name for name, _, _ in LAYOUT[kind].get('doors', ())]
+    if len(names) != 2:
         print(f'{kind} has no paired vision doors: no leaf seam to check')
         return
-    left = bpy.data.objects['Vision_Door_L']
-    right = bpy.data.objects['Vision_Door_R']
+    left = bpy.data.objects[names[0]]
+    right = bpy.data.objects[names[1]]
     left_inner = max(point.x for point in world_bounds(left.children_recursive))
     right_inner = min(point.x for point in world_bounds(right.children_recursive))
     gap = right_inner - left_inner

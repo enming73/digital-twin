@@ -68,3 +68,8 @@
 - Ambient occlusion was implemented (`n8ao` + `SMAAPass` + `OutputPass`), reviewed, then removed. Measured against `?ao=off` at the same camera it changed the overview by 2.2 and the mounter close-up by 8.5 grey levels (of 255); the key light's shadow map already supplies the contact shading. It cost 165 kB of bundle and about a tenth of the frame on headless SwiftShader. Both packages and the pass are gone.
 - If AO is revisited: N8AO draws into float targets and bypasses three's tone mapping and MSAA, so it needs `gammaCorrection = false` with `SMAAPass` + `OutputPass`, and a gate on `EXT_color_buffer_float` — without that gate the stage renders blank on contexts without float targets.
 - `?quality=low` remains the environment-bake switch: ~1.9 callbacks/s by default vs ~3.4 with it, at 1366×768 on headless SwiftShader. Bundle is 1,679 kB minified / 478 kB gzip.
+
+## v1.7 (2026-11-13)
+- The deferred review minors were cleared: front cladding is derived from each station's cover layout instead of literals, reflow covers meet in a stile with a sealed header and base, cover window frames stand proud of the panel face, and the outboard hinge clears the side wall.
+- The travel envelope is now asserted twice: inside Blender before export, and in Vitest from the exported GLB accessors with the offsets taken from `src/scene/anchors.ts`. The CI test was verified to fail when the envelope is tightened.
+- The browser console/cross-origin guard now visits all seven stations instead of the overview and mounter only.
