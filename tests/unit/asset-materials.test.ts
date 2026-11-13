@@ -12,6 +12,7 @@ describe('loaded asset shadow casting', () => {
     expect(castsShadow(['Door upright', 'Mounter safety glass'])).toBe(false)
     expect(castsShadow(['printer safety glass'])).toBe(false)
     expect(castsShadow(['spi safety glass', 'aoi safety glass'])).toBe(false)
+    expect(castsShadow(['reflow safety glass'])).toBe(false)
   })
 
   it('treats every station glazing name as glazing, including Blender suffix deduplication', () => {

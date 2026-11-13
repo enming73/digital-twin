@@ -16,8 +16,8 @@ from mathutils import Vector
 ROOT = Path(__file__).resolve().parents[2]
 KINDS = ['loader', 'printer', 'spi', 'mounter', 'reflow', 'aoi', 'unloader']
 # Stations with the detailed glazed enclosure and operator panel.
-DETAILED = ('mounter', 'printer', 'spi', 'aoi')
-LABELS = {'mounter': 'Mounter', 'printer': 'Printer', 'spi': 'SPI', 'aoi': 'AOI'}
+DETAILED = ('mounter', 'printer', 'spi', 'aoi', 'reflow')
+LABELS = {'mounter': 'Mounter', 'printer': 'Printer', 'spi': 'SPI', 'aoi': 'AOI', 'reflow': 'Reflow'}
 # Anchor name -> (horizontal travel, lift) in metres, mirroring src/scene/anchors.ts.
 CLEARANCE = {
     'mounter': {'Gantry_X': (.45, 0), 'Gantry_Y': (.45, 0),
@@ -25,6 +25,7 @@ CLEARANCE = {
     'printer': {'Squeegee': (.48, 0), 'Clamp': (0, .02)},
     'spi': {'Camera_Bridge': (.57, 0), 'Camera_Head': (0, -.05)},
     'aoi': {'Camera_Bridge': (.57, 0), 'Camera_Head': (0, -.05)},
+    'reflow': {'Belt': (.36, 0), 'Zone_Shutter': (0, .03)},
 }
 
 
@@ -96,7 +97,9 @@ def shell(mats, kind):
         for x in (-1.07, 1.07):
             box('Corner column', (x, 1.55, .91), (.10, .67, .09), metal, cabinet)
     for x in (-.55, .55):
-        if kind in DETAILED:
+        if kind == 'reflow':
+            box('Roof vent', (x, 2.039, -.28), (.62, .006, .10), trim, cabinet, .001)
+        elif kind in DETAILED:
             box('Roof vent', (x, 1.899, -.28), (.62, .006, .10), trim, cabinet, .001)
         else:
             box('Roof vent', (x, 1.892, -.28), (.62, .006, .10), trim, cabinet, .001)
@@ -232,23 +235,65 @@ LAYOUT = {
     'aoi': {'doors': (('Vision_Door', -.23, 'left'),),
             'width': 1.80, 'height': .62, 'center_y': 1.50, 'title': 'AOI / DEMO',
             'rows': (.22, .10, .16)},
+    'reflow': {'doors': (), 'covers': (('Maintenance_Cover_A', -.78), ('Maintenance_Cover_B', .04)),
+               'width': .78, 'height': .58, 'center_y': 1.52, 'title': 'REFLOW / DEMO',
+               'rows': (.16, .20, .12)},
 }
+
+
+def service_cover(mats, finish, cabinet, name, center_x, center_y, width, height, hinge_side, window, window_offset=0):
+    """Insulated clad cover with a small framed inspection aperture."""
+    paint, trim, _, metal, _, _ = mats
+    window_width, window_height = window
+    window_y = center_y + window_offset
+    cover = group(name, cabinet)
+    top_window = window_y + window_height / 2
+    bottom_window = window_y - window_height / 2
+    for dx in (-(window_width / 2 + (width - window_width) / 4), window_width / 2 + (width - window_width) / 4):
+        box('Cover panel', (center_x + dx, center_y, .965), ((width - window_width) / 2, height, .03), paint, cover, .004)
+    box('Cover panel', (center_x, (top_window + center_y + height / 2) / 2, .965), (window_width, center_y + height / 2 - top_window, .03), paint, cover, .004)
+    box('Cover panel', (center_x, (bottom_window + center_y - height / 2) / 2, .965), (window_width, bottom_window - (center_y - height / 2), .03), paint, cover, .004)
+    for dx in (-(window_width / 2 + .012), window_width / 2 + .012):
+        box('Window frame', (center_x + dx, window_y, .967), (.024, window_height + .048, .012), trim, cover, .003)
+    for dy in (-(window_height / 2 + .012), window_height / 2 + .012):
+        box('Window frame', (center_x, window_y + dy, .967), (window_width, .024, .012), trim, cover, .003)
+    box('Cover glazing', (center_x, window_y, .962), (window_width, window_height, .008), finish['glass'], cover, 0)
+    edge = center_x + (-(width / 2 - .02) if hinge_side == 'left' else width / 2 - .02)
+    for offset in (-.18, .18):
+        box('Cover hinge', (edge, center_y + offset, .99), (.07, .06, .014), metal, cover, .003)
+    latch_x = center_x + ((width / 2 - .06) if hinge_side == 'left' else -(width / 2 - .06))
+    box('Cover latch', (latch_x, center_y, .995), (.06, .10, .02), trim, cover, .004)
+    return cover
 
 
 def detailed_enclosure(mats, cabinet, kind):
     """Hollow upper enclosure with glazed doors and a side operator panel."""
     paint, _, _, metal, _, _ = mats
     finish = station_finish(LABELS[kind], f'{kind} safety glass' if kind != 'mounter' else 'Mounter safety glass')
-    box('Enclosure roof', (0, 1.86, 0), (2.48, .07, 1.90), paint, cabinet)
-    box('Enclosure back', (0, 1.46, -.87), (2.48, .73, .06), paint, cabinet)
-    for x in (-1.205, 1.205):
-        box('Enclosure side', (x, 1.46, 0), (.07, .73, 1.80), paint, cabinet)
-    box('Window sill', (0, 1.15, .96), (2.46, .08, .10), metal, cabinet)
-
     layout = LAYOUT[kind]
+    if kind == 'reflow':
+        # The oven is insulated cladding first: a taller shell and two small inspection apertures.
+        box('Enclosure roof', (0, 2.00, 0), (2.48, .07, 1.90), paint, cabinet)
+        box('Enclosure back', (0, 1.52, -.87), (2.48, .96, .06), paint, cabinet)
+        for x in (-1.205, 1.205):
+            box('Enclosure side', (x, 1.52, 0), (.07, .96, 1.80), paint, cabinet)
+        box('Window sill', (0, 1.15, .96), (2.46, .08, .10), metal, cabinet)
+        box('Cladding header', (0, 1.90, .965), (2.34, .16, .03), paint, cabinet, .004)
+        box('Cladding base', (0, 1.19, .965), (2.34, .08, .03), paint, cabinet, .004)
+        box('Cladding infill', (.595, 1.52, .965), (.33, .58, .03), paint, cabinet, .004)
+    else:
+        box('Enclosure roof', (0, 1.86, 0), (2.48, .07, 1.90), paint, cabinet)
+        box('Enclosure back', (0, 1.46, -.87), (2.48, .73, .06), paint, cabinet)
+        for x in (-1.205, 1.205):
+            box('Enclosure side', (x, 1.46, 0), (.07, .73, 1.80), paint, cabinet)
+        box('Window sill', (0, 1.15, .96), (2.46, .08, .10), metal, cabinet)
+
     for name, center, hinge_side in layout['doors']:
         vision_door(mats, finish, cabinet, name, center, layout['center_y'],
                     layout['width'], layout['height'], hinge_side, HARDWARE[kind])
+    for name, center in layout.get('covers', ()):
+        service_cover(mats, finish, cabinet, name, center, layout['center_y'],
+                      layout['width'], layout['height'], 'left' if center < 0 else 'right', (.30, .16), -.12)
     operator_panel(mats, finish, cabinet, .96, layout['title'], layout['rows'])
     return finish
 
@@ -298,7 +343,7 @@ def world_bounds(objects):
 def validate_door_seams(kind):
     """Two leaves must read as two doors: a real seam, not one merged mullion."""
     if 'Vision_Door_L' not in bpy.data.objects:
-        print(f'{kind} uses a single observation door: no leaf seam to check')
+        print(f'{kind} has no paired vision doors: no leaf seam to check')
         return
     left = bpy.data.objects['Vision_Door_L']
     right = bpy.data.objects['Vision_Door_R']
@@ -361,15 +406,16 @@ def camera_parts(mats, kind):
 def reflow_parts(mats):
     _, trim, _, metal, _, _ = mats
     tunnel = group('Tunnel')
-    for z in (-.52, .52):
-        box('Tunnel wall', (0, 1.60, z), (2.05, .55, .09), metal, tunnel)
+    # No front tunnel wall: the insulated cladding covers are the oven's front face.
+    box('Tunnel back wall', (0, 1.60, -.52), (2.05, .55, .09), metal, tunnel)
+    box('Tunnel liner', (0, 1.52, -.455), (1.95, .60, .02), trim, tunnel, .002)
     box('Tunnel roof', (0, 1.92, 0), (2.05, .10, .94), trim, tunnel)
     shutters = group('Zone_Shutter')
     for x in (-.45, 0, .45):
-        box('Zone shutter', (x, 1.55, .95), (.06, .30, .02), metal, shutters, .002)
+        box('Zone shutter', (x, 1.55, .60), (.06, .30, .02), metal, shutters, .002)
     belt = group('Belt')
-    for i in range(6):
-        box('Belt cleat', (-.90 + .36 * i, 1.30, .95), (.05, .05, .46), trim, belt, .002)
+    for i in range(5):
+        box('Belt cleat', (-.72 + .36 * i, 1.30, .02), (.05, .05, .46), trim, belt, .002)
 
 
 def loader_parts(mats):

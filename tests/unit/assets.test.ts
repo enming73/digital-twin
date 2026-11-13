@@ -99,6 +99,18 @@ describe('original Blender machine assets', () => {
     })
   }
 
+  it('reflow exports insulated maintenance covers with small inspection windows', () => {
+    const json = glbJson('reflow')
+    for (const name of ['Maintenance_Cover_A', 'Maintenance_Cover_B', 'Operator_Panel', 'HMI_Display', 'Emergency_Stop']) {
+      expect(nodeNames(json).filter(nodeName => nodeName === name)).toHaveLength(1)
+    }
+    const glass = glazingIndex(json, 'reflow safety glass')
+    for (const cover of ['Maintenance_Cover_A', 'Maintenance_Cover_B']) {
+      expect(usedMaterials(json, cover)).toContain(glass)
+      expect(Math.abs(nodeHeight(json, cover) - 0.58)).toBeLessThan(0.001)
+    }
+  })
+
   for (const kind of ['spi', 'aoi']) {
     it(`${kind} exports a framed inspection door and its own labelled panel`, () => {
       const json = glbJson(kind)
