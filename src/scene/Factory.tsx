@@ -13,14 +13,7 @@ import { easeInOutCubic, lerpPreset, tweenProgress } from './cameraTween'
 import { signalColor, signalIntensity } from './status'
 import Floor from './Floor'
 import LightRig, { EXPOSURE } from './lighting'
-import AmbientOcclusion from './AO'
-import { aoEnabled } from './ao'
 import { castsShadow } from './assetMaterials'
-
-function RenderMode({ mode }: { mode: 'composed' | 'direct' }) {
-  useEffect(() => { document.body.dataset.renderer = mode }, [mode])
-  return null
-}
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
   return <mesh name={name} position={position} castShadow receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} metalness={metal} roughness={0.57} /></mesh>
@@ -215,9 +208,6 @@ export default function Factory({ selected, onSelect, resetKey, scene, selectedB
   return <Canvas shadows dpr={[1, 1.5]} gl={{ toneMappingExposure: EXPOSURE }} camera={{ position: overviewCamera.position, fov: 40 }} fallback={<div className="canvas-fallback">3D view unavailable. WebGL is required to view the factory.</div>}>
     <color attach="background" args={['#dde4dd']} /><fog attach="fog" args={['#dde4dd', 45, 110]} />
     <LightRig />
-    {aoEnabled(typeof window === 'undefined' ? '' : window.location.search)
-      ? <AmbientOcclusion />
-      : <RenderMode mode="direct" />}
     <Floor />
     {stations.map(station => <Machine key={station.id} station={station} machine={scene.stations[station.id]?.localMotion ?? null} status={scene.stations[station.id]?.state ?? 'UNKNOWN'} time={scene.simTimeMs} selected={selected?.id === station.id || boardStation === station.id} onSelect={() => onSelect(station)} />)}
     <Boards scene={scene} selectedBoard={selectedBoard} onSelectBoard={onSelectBoard} /><CameraRig station={selected} resetKey={resetKey} />

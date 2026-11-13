@@ -40,8 +40,7 @@ test('a drag during the push-in cancels the ease without breaking the scene', as
   expect(errors).toEqual([])
 })
 
-for (const [mode, query, renderer] of [['ambient occlusion', '', 'composed'], ['low quality', '?quality=low', 'direct']]) {
-test(`renders the scene with ${mode} without console errors or cross-origin requests`, async ({ page }) => {
+test('renders the scene without console errors or cross-origin requests', async ({ page }) => {
   const errors: string[] = []
   const external: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -51,31 +50,13 @@ test(`renders the scene with ${mode} without console errors or cross-origin requ
     if (!url.protocol.startsWith('http')) return
     if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') external.push(request.url())
   })
-  await page.goto(`/${query}`)
-  await expect(page.locator('canvas')).toBeVisible()
-  await expect(page.locator('body')).toHaveAttribute('data-renderer', renderer)
-  await page.waitForTimeout(1500)
-  await page.screenshot({ path: `test-results/overview-${query ? 'low' : 'ao'}.png`, animations: 'disabled' })
-  await page.getByRole('button', { name: /Pick & Place/ }).click()
-  await page.waitForTimeout(1200)
-  await page.screenshot({ path: `test-results/closeup-${query ? 'low' : 'ao'}.png`, animations: 'disabled' })
-  expect(external).toEqual([])
-  expect(errors).toEqual([])
-})
-}
-
-test('falls back to direct rendering when the context cannot render to float targets', async ({ page }) => {
-  await page.addInitScript(() => {
-    const original = WebGL2RenderingContext.prototype.getExtension
-    WebGL2RenderingContext.prototype.getExtension = function (name: string) {
-      if (name === 'EXT_color_buffer_float') return null
-      return original.call(this, name)
-    }
-  })
-  const warnings: string[] = []
-  page.on('console', message => { if (message.type() === 'warning') warnings.push(message.text()) })
   await page.goto('/')
   await expect(page.locator('canvas')).toBeVisible()
-  await expect(page.locator('body')).toHaveAttribute('data-renderer', 'direct')
-  await expect.poll(() => warnings.some(text => text.includes('Ambient occlusion disabled'))).toBe(true)
+  await page.waitForTimeout(1500)
+  await page.screenshot({ path: 'test-results/v12-overview.png', animations: 'disabled' })
+  await page.getByRole('button', { name: /Pick & Place/ }).click()
+  await page.waitForTimeout(1200)
+  await page.screenshot({ path: 'test-results/v12-closeup.png', animations: 'disabled' })
+  expect(external).toEqual([])
+  expect(errors).toEqual([])
 })
