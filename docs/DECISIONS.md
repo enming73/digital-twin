@@ -87,3 +87,8 @@
 - `SIGNAL_LENS` is the single source for the authored lens position and a unit test asserts it against every GLB, so a future tower edit cannot leave the halo floating.
 - A post-processing bloom was rejected: render targets, tone-mapping handling and a quality switch for seven small lamps is the trade the ambient-occlusion round already declined.
 - The halo is a visual cue only: no light is cast, exposure does not change.
+
+## v2.0 (2026-11-13)
+- The reflow oven shows three conceptual zones as small header lamps Z1–Z3. The active one is `floor(progress * 3)` from the same `processTimeMs` the mechanism already uses; an empty oven is dark and a fault freezes the zone.
+- The labels are runtime canvas textures and the lamps are scene geometry at the authored header position, so this round needed no GLB regeneration and no simulator change.
+- No temperatures, dwell times or recipes are shown: the zones illustrate process staging only.
