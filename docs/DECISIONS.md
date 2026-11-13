@@ -80,3 +80,10 @@
 - A hop starts at the poll that discovers the move, from where the board was last drawn, because the engine's transfer event is not exposed to the scene. x and z are both eased, so entering a queue neither jogs backwards nor snaps sideways. The model can lead the picture by up to one poll; the hop itself always lasts at least two polls.
 - Boards travel on the real conveyor line (`z 0.12`), so most of a hop is hidden inside the machine enclosures. Routing them in front of the cabinets was rejected as physically wrong.
 - Remote W4 boards keep the server-supplied `visual` interpolation and are outside this change; scenes containing them are skipped by the transfer model, and switching source clears any in-flight hops.
+
+## v1.9 (2026-11-13)
+- The seven signal towers draw a soft sprite halo over the lens, sized and tinted by state: FAULT 0.60/0.46 m, BLOCKED and STARVED 0.52/0.42, RUNNING 0.46/0.40, idle 0.12/0.26. Texture is a runtime radial gradient; nothing is downloaded.
+- Normal blending, not additive: an additive halo clips to white on the pale backdrop, so the fault halo read as a white bloom. Depth testing stays on and depth writing is off, so machines occlude it; the sprite is not clickable.
+- `SIGNAL_LENS` is the single source for the authored lens position and a unit test asserts it against every GLB, so a future tower edit cannot leave the halo floating.
+- A post-processing bloom was rejected: render targets, tone-mapping handling and a quality switch for seven small lamps is the trade the ambient-occlusion round already declined.
+- The halo is a visual cue only: no light is cast, exposure does not change.

@@ -140,7 +140,7 @@ Sections 1–7 were written on 2026-11-10 and are kept as the handover record of
   [`MOUNTER_SAMPLE_REPORT.md`](MOUNTER_SAMPLE_REPORT.md) ·
   [`PRINTER_INSPECTION_ROLLOUT_REPORT.md`](PRINTER_INSPECTION_ROLLOUT_REPORT.md) ·
   [`REFLOW_LOADER_ROLLOUT_REPORT.md`](REFLOW_LOADER_ROLLOUT_REPORT.md).
-- **Rendering** — authored showroom lighting with a blurred planar floor reflection, and a matte powder coat in all seven assets. Ambient occlusion was built, measured and removed; the reasoning and the traps are in [`MATERIALS_AO_REPORT.md`](MATERIALS_AO_REPORT.md) and [`DECISIONS.md`](DECISIONS.md) v1.2–v1.6.
+- **Rendering** — authored showroom lighting with a blurred planar floor reflection, and a matte powder coat in all seven assets. Signal towers carry a small state-tinted halo ([`STATUS_GLOW_REPORT.md`](STATUS_GLOW_REPORT.md)). Ambient occlusion was built, measured and removed; the reasoning and the traps are in [`MATERIALS_AO_REPORT.md`](MATERIALS_AO_REPORT.md) and [`DECISIONS.md`](DECISIONS.md) v1.2–v1.9.
 - **What this supersedes** — the "two Blender scenes" and "five stations share procedural shells" statements above, and the W1 audit's shared-shell finding. The W1 records themselves are historical and are not rewritten.
 - **Board motion** — cross-station hops are now interpolated in the scene over 0.35–0.9 s of simulated time; the simulator still transfers instantaneously. See [`TRANSFER_REPORT.md`](TRANSFER_REPORT.md).
 - **What is unchanged** — replay semantics, camera presets, backend, event contract and all W2–W6 behaviour. Remote views still render the models statically.
