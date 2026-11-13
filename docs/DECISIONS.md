@@ -62,3 +62,10 @@
 - Frame cost was measured in one session on headless SwiftShader at 1366×768, two 5 s runs each: v1.1 at `5962e63` **9.1 fps**; this build **3.4 fps**; this build with `?quality=low` **8.2 fps**. A plain-floor variant measured ~4.3 in review, so the planar reflection is nearly free and the **environment/IBL is the 2.4× cost**. `?quality=low` skips the `<Environment>` bake and recovers the baseline; it is the supported fallback for a weak demo laptop. These are software-rasteriser numbers, not a GPU baseline; measure the actual demo machine before accepting the cost.
 - Demo-hardware check (2026-11-12): the target presentation machine runs the overview at **150–180 fps**, which is refresh-rate capped, so the environment cost is absorbed there and `?quality=low` is not needed. The SwiftShader numbers above stay the CI reference, not a laptop baseline.
 - Post-processing (SSAO, bloom, DOF), set dressing (fences, ceiling trusses, cable trays), texture baking and LODs stay deferred. Nothing in the v1.1 asset pipeline, anchor motion, camera easing or backend changed in this round.
+
+## v1.6 (2026-11-13)
+- Powder coat is matte paint: base `(.46, .49, .47)`, metallic `0.04`, roughness `0.62`. The previous values (`.68/.72/.69`, metallic `0.27`) made a non-metal surface read as plastic because of the metallic sheen, not because of its lightness alone.
+- Ambient occlusion runs through `N8AOPass` from `n8ao`, added to a three `EffectComposer` by hand. `@react-three/postprocessing` is installed but only its peer `postprocessing` is used: its composer takes `Effect`s, while N8AO ships a `Pass`.
+- The AO component takes over rendering (`useFrame` priority 1). Any later post effect belongs in that same composer.
+- `?quality=low` skips AO as well as the environment bake; on headless SwiftShader the pass roughly doubles frame cost (2.53 vs 5.29 callbacks/s at 1366×768). Bundle grew 165 kB minified / 86 kB gzip.
+- AO is composed after tone mapping through the same renderer; the glazing and the planar floor reflection showed no doubling or leaking at `intensity 1.5`, half resolution.

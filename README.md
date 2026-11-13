@@ -65,7 +65,7 @@ npm run dev
 
 Open the URL printed by Vite. Drag to orbit, scroll to zoom, and click a machine or use the keyboard-accessible station list to focus it. **Reset view** restores the overview. Use **Start/Pause**, **Reset**, and the 1×/2×/5× selector.
 
-The scene uses seven locally packaged GLBs generated from one original Blender pipeline; the procedural shell is only a load-failure fallback. Lighting is an authored showroom rig: three softbox lightformers baked once into an environment map, a key light that casts shadows, and a blurred planar reflection on the floor. No HDRI, texture or font is downloaded — the demo still runs with no network. WebGL is required; a fallback message is shown when it is unavailable.
+The scene uses seven locally packaged GLBs generated from one original Blender pipeline; the procedural shell is only a load-failure fallback. Lighting is an authored showroom rig: three softbox lightformers baked once into an environment map, a key light that casts shadows, and a blurred planar reflection on the floor. Screen-space ambient occlusion adds contact shading in the recesses and under the cabinets; it is skipped with `?quality=low`. No HDRI, texture or font is downloaded — the demo still runs with no network. WebGL is required; a fallback message is shown when it is unavailable.
 
 #### Static deployment
 

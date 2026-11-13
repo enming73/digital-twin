@@ -40,7 +40,8 @@ test('a drag during the push-in cancels the ease without breaking the scene', as
   expect(errors).toEqual([])
 })
 
-test('renders the scene without console errors or cross-origin requests', async ({ page }) => {
+for (const [mode, query] of [['ambient occlusion', ''], ['low quality', '?quality=low']]) {
+test(`renders the scene with ${mode} without console errors or cross-origin requests`, async ({ page }) => {
   const errors: string[] = []
   const external: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -50,13 +51,14 @@ test('renders the scene without console errors or cross-origin requests', async 
     if (!url.protocol.startsWith('http')) return
     if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') external.push(request.url())
   })
-  await page.goto('/')
+  await page.goto(`/${query}`)
   await expect(page.locator('canvas')).toBeVisible()
   await page.waitForTimeout(1500)
-  await page.screenshot({ path: 'test-results/v12-overview.png', animations: 'disabled' })
+  await page.screenshot({ path: `test-results/overview-${query ? 'low' : 'ao'}.png`, animations: 'disabled' })
   await page.getByRole('button', { name: /Pick & Place/ }).click()
   await page.waitForTimeout(1200)
-  await page.screenshot({ path: 'test-results/v12-closeup.png', animations: 'disabled' })
+  await page.screenshot({ path: `test-results/closeup-${query ? 'low' : 'ao'}.png`, animations: 'disabled' })
   expect(external).toEqual([])
   expect(errors).toEqual([])
 })
+}
