@@ -14,7 +14,7 @@ import { signalColor, signalIntensity } from './status'
 import Floor from './Floor'
 import LightRig, { EXPOSURE } from './lighting'
 import { castsShadow } from './assetMaterials'
-import { boardTarget, boardX, updateTransfers, type Transfer } from './transfers'
+import { boardTarget, boardX, boardZ, updateTransfers, type Transfer } from './transfers'
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
   return <mesh name={name} position={position} castShadow receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} metalness={metal} roughness={0.57} /></mesh>
@@ -186,7 +186,10 @@ function Boards({ scene, selectedBoard, onSelectBoard, onTransferCount }: { scen
   })
   useEffect(() => {
     if (!ref.current) return
-    transfers.current = updateTransfers(transfers.current, previousScene.current, scene)
+    const previous = previousScene.current
+    const crossesSources = Boolean(previous && previous.boards.some(board => board.visual) !== scene.boards.some(board => board.visual))
+    if (crossesSources) transfers.current = []
+    transfers.current = updateTransfers(transfers.current, previous, scene)
     previousScene.current = scene
     onTransferCount(transfers.current.length)
     const mesh = ref.current; const matrix = new THREE.Matrix4(); let count = 0
@@ -195,8 +198,9 @@ function Boards({ scene, selectedBoard, onSelectBoard, onTransferCount }: { scen
     scene.boards.forEach(board => {
       if (board.visual) { add(board.id, board.visual.fromX, 0.12); return }
       const target = boardTarget(board, scene)
+      if (!target) return
       const transfer = transfers.current.find(item => item.boardId === board.id)
-      add(board.id, boardX(transfer, target.x, scene.simTimeMs), target.z)
+      add(board.id, boardX(transfer, target.x, scene.simTimeMs), boardZ(transfer, target.z, scene.simTimeMs))
     })
     mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
   }, [scene, selectedBoard, onTransferCount])

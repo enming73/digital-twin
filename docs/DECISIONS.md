@@ -76,7 +76,7 @@
 
 ## v1.8 (2026-11-13)
 - Cross-station board motion is a visual interpolation: `src/scene/transfers.ts` diffs successive scene snapshots, records a hop when a board's station changes, and derives the position from `scene.simTimeMs` only. Pausing freezes the hop; a backwards seek clears in-flight transfers.
-- Hop duration is `clamp(|dx| * 110, 350, 900)` ms and is explicitly illustrative. The simulator still transfers boards instantaneously between buffers; no event payload, KPI or replay semantic changed.
-- A hop starts at the previous poll's simulated time because the engine's transfer event is not exposed to the scene. That bounds the visual lag to one poll (~100 ms at 1x); at 5x a hop can complete between polls and the board appears at its destination.
+- Hop duration is `max(clamp(|dx| * 110, 350, 900), 2 × poll gap)` and is explicitly illustrative. The stretch guarantees a frame in flight at 2× and 5×, where a 350 ms hop would fit inside one 200–500 ms poll. The simulator still transfers boards instantaneously between buffers; no event payload, KPI or replay semantic changed.
+- A hop starts at the poll that discovers the move, from where the board was last drawn, because the engine's transfer event is not exposed to the scene. x and z are both eased, so entering a queue neither jogs backwards nor snaps sideways. The model can lead the picture by up to one poll; the hop itself always lasts at least two polls.
 - Boards travel on the real conveyor line (`z 0.12`), so most of a hop is hidden inside the machine enclosures. Routing them in front of the cabinets was rejected as physically wrong.
-- Remote W4 boards keep the server-supplied `visual` interpolation and are outside this change.
+- Remote W4 boards keep the server-supplied `visual` interpolation and are outside this change; scenes containing them are skipped by the transfer model, and switching source clears any in-flight hops.
