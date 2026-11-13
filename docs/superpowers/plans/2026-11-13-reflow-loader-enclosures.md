@@ -40,31 +40,31 @@
 
 **Interfaces:** consume `station_finish`, `operator_panel`, `consolidate`, `validate_clearance`, `validate_door_seams`, `validate_roof_vents`. Add `service_cover(mats, finish, cabinet, name, center_x, center_y, width, height, hinge_side, window_height)` returning the cover group; covers are single leaves, so `validate_door_seams` reports and returns when `Vision_Door_L` is absent.
 
-- [ ] Add artifact assertions for `Maintenance_Cover_A`, `Maintenance_Cover_B`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop`; assert each cover uses `reflow safety glass` (BLEND, alpha in (0,1)) and that both covers have the specified 0.58 m height. Keep existing contracts. Run `npx vitest run tests/unit/assets.test.ts` and confirm the reflow test fails on missing covers.
-- [ ] Add a runtime policy test for `reflow safety glass` and observe it pass (the suffix rule already covers it); if it fails, extend the rule deliberately rather than renaming the material.
-- [ ] Implement `service_cover` and reflow's detailed enclosure: two covers 0.78 × 0.58 m at x −0.78 and 0.04, centre y 1.52, with a 0.30 × 0.16 m window centred at y 1.50; hinges outboard, latch inboard. Screens use `REFLOW / DEMO`. Keep the existing tunnel, its roof and side walls; add insulated top cladding and end panels.
-- [ ] Relocate `Belt` cleats from z .95 to z .02 and `Zone_Shutter` from z .95 to z .60 so they sit inside the cladding and are visible through the windows. Add `CLEARANCE['reflow'] = {'Belt': (.36, 0), 'Zone_Shutter': (0, .03)}` and confirm the export assertion passes at both extrema.
-- [ ] Export reflow only; run asset/policy/anchor tests and `npm test`; record GLB bytes, meshes and primitives; verify the four protected station hashes and inspect the reflow close-up. Commit scoped files.
+- [x] Add artifact assertions for `Maintenance_Cover_A`, `Maintenance_Cover_B`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop`; assert each cover uses `reflow safety glass` (BLEND, alpha in (0,1)) and that both covers have the specified 0.58 m height. Keep existing contracts. Run `npx vitest run tests/unit/assets.test.ts` and confirm the reflow test fails on missing covers.
+- [x] Add a runtime policy test for `reflow safety glass` and observe it pass (the suffix rule already covers it); if it fails, extend the rule deliberately rather than renaming the material.
+- [x] Implement `service_cover` and reflow's detailed enclosure: two covers 0.78 × 0.58 m at x −0.78 and 0.04, centre y 1.52, with a 0.30 × 0.16 m window centred at y 1.50; hinges outboard, latch inboard. Screens use `REFLOW / DEMO`. Keep the existing tunnel, its roof and side walls; add insulated top cladding and end panels.
+- [x] Relocate `Belt` cleats from z .95 to z .02 and `Zone_Shutter` from z .95 to z .60 so they sit inside the cladding and are visible through the windows. Add `CLEARANCE['reflow'] = {'Belt': (.36, 0), 'Zone_Shutter': (0, .03)}` and confirm the export assertion passes at both extrema.
+- [x] Export reflow only; run asset/policy/anchor tests and `npm test`; record GLB bytes, meshes and primitives; verify the four protected station hashes and inspect the reflow close-up. Commit scoped files.
 
 ### Task 2: Loader and unloader magazine doors
 
 **Interfaces:** consumes `service_cover`; loader and unloader share a geometry function but keep distinct material names (`loader safety glass`, `unloader safety glass`) and HMI labels (`LOAD / DEMO`, `UNLOAD / DEMO`).
 
-- [ ] Parameterize the artifact contract and add assertions for `Magazine_Door`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop`, the kind-specific glazing material and a 0.52 m door height. Run the affected test and confirm failure on the missing door.
-- [ ] Add layout entries: one guard door 1.05 × 0.52 m at x −0.42, centre y 1.44, with a 0.34 × 0.30 m window; magazine, lift platform and pusher move from z .96/1.06 to z .48/.62 so they sit behind the door. Add `CLEARANCE` entries for `Lift` (0, .18) and `Pusher` (0, .10); note that `Pusher` travels on scene z, so its clearance is checked as lift-like on z.
-- [ ] Generalize `camera_parts`-style dispatch only if needed: loader and unloader already share `loader_parts`; pass `kind` so `Magazine_Door` and HMI labels differ.
-- [ ] Export loader and unloader individually; run asset/policy/anchor tests and `npm test`; record sizes and counts; verify protected hashes; inspect both close-ups and confirm the magazine is visible through the window. Commit scoped files.
+- [x] Parameterize the artifact contract and add assertions for `Magazine_Door`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop`, the kind-specific glazing material and a 0.52 m door height. Run the affected test and confirm failure on the missing door.
+- [x] Add layout entries: one guard door 1.05 × 0.52 m at x −0.42, centre y 1.44, with a 0.34 × 0.30 m window; magazine, lift platform and pusher move from z .96/1.06 to z .48/.62 so they sit behind the door. Add `CLEARANCE` entries for `Lift` (0, .18) and `Pusher` (0, .10); note that `Pusher` travels on scene z, so its clearance is checked as lift-like on z.
+- [x] Generalize `camera_parts`-style dispatch only if needed: loader and unloader already share `loader_parts`; pass `kind` so `Magazine_Door` and HMI labels differ.
+- [x] Export loader and unloader individually; run asset/policy/anchor tests and `npm test`; record sizes and counts; verify protected hashes; inspect both close-ups and confirm the magazine is visible through the window. Commit scoped files.
 
 ### Task 3: Presentation verification and evidence
 
 **Interfaces:** consumes the three GLBs at existing URLs and existing camera/selection controls.
 
-- [ ] Extend model selection and corrupt-GLB fallback browser checks to reflow, loader and unloader. These test existing behaviour, not a claimed bug fix.
-- [ ] Capture before/after close-ups at 1600×900 for the three stations, plus default/low quality, a running pose and an oblique view. Inspect window placement on the tunnel, cover gaps, magazine visibility, HMI labelling and any pane shadow; fix observed defects.
-- [ ] Compare same-settings rAF callback samples with the software-rasteriser caveat; make no GPU claims.
-- [ ] Run typecheck, lint, the full unit suite, build and the full E2E suite; record exit codes and summaries without relaxing budgets.
-- [ ] Write `docs/REFLOW_LOADER_ROLLOUT_REPORT.md` with commands, artifact measurements, screenshots and limitations; update completed plan checkboxes.
-- [ ] Run one fresh whole-branch review, fix Critical/Important findings with RED→GREEN tests, and present the three close-ups for acceptance. Do not merge or push without an explicit instruction.
+- [x] Extend model selection and corrupt-GLB fallback browser checks to reflow, loader and unloader. These test existing behaviour, not a claimed bug fix.
+- [x] Capture before/after close-ups at 1600×900 for the three stations, plus default/low quality, a running pose and an oblique view. Inspect window placement on the tunnel, cover gaps, magazine visibility, HMI labelling and any pane shadow; fix observed defects.
+- [x] Compare same-settings rAF callback samples with the software-rasteriser caveat; make no GPU claims.
+- [x] Run typecheck, lint, the full unit suite, build and the full E2E suite; record exit codes and summaries without relaxing budgets.
+- [x] Write `docs/REFLOW_LOADER_ROLLOUT_REPORT.md` with commands, artifact measurements, screenshots and limitations; update completed plan checkboxes.
+- [x] Run one fresh whole-branch review, fix Critical/Important findings with RED→GREEN tests, and present the three close-ups for acceptance. Do not merge or push without an explicit instruction.
 
 ## Self-review
 

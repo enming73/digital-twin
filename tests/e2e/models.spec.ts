@@ -14,6 +14,14 @@ test('loads every station model and retains machine selection', async ({ page })
   await expect(page.getByRole('heading', { name: 'Solder Paste Inspection' })).toBeVisible()
   await page.getByRole('button', { name: /Automated Optical Inspection/ }).click()
   await expect(page.getByRole('heading', { name: 'Automated Optical Inspection' })).toBeVisible()
+  for (const [station, heading] of [
+    ['Reflow Oven', 'Reflow Oven'],
+    ['PCB Loader', 'PCB Loader'],
+    ['PCB Unloader', 'PCB Unloader'],
+  ] as const) {
+    await page.getByRole('button', { name: new RegExp(station) }).click()
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+  }
 })
 
 for (const [kind, label] of [
@@ -21,6 +29,9 @@ for (const [kind, label] of [
   ['mounter', 'Pick & Place'],
   ['spi', 'Solder Paste Inspection'],
   ['aoi', 'Automated Optical Inspection'],
+  ['reflow', 'Reflow Oven'],
+  ['loader', 'PCB Loader'],
+  ['unloader', 'PCB Unloader'],
 ]) {
   test(`keeps the factory interactive if ${kind} fails to load`, async ({ page }) => {
     let intercepted = false
