@@ -1,8 +1,9 @@
 import { readFileSync, statSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { artifactNames, stationAnchors } from '../../src/data/anchors'
+import { anchorOffsets } from '../../src/scene/anchors'
 
-type GlbNode = { name?: string; mesh?: number; children?: number[] }
+type GlbNode = { name?: string; mesh?: number; children?: number[]; translation?: number[] }
 type GlbMaterial = {
   name?: string
   alphaMode?: string
@@ -94,16 +95,18 @@ describe('original Blender machine assets', () => {
     for (const door of ['Vision_Door_L', 'Vision_Door_R']) expect(usedMaterials(json, door)).toContain(glass)
   })
 
-  it('powder coat is a darker, near-dielectric paint rather than a bright metal', () => {
-    const paint = glbJson('mounter').materials?.find(material => material.name === 'Powder coated warm grey')
-    const [red, green, blue] = paint?.pbrMetallicRoughness?.baseColorFactor ?? [1, 1, 1]
-    const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
-    expect(luminance).toBeLessThan(0.5)
-    expect(paint?.pbrMetallicRoughness?.metallicFactor).toBeLessThanOrEqual(0.1)
-    const roughness = paint?.pbrMetallicRoughness?.roughnessFactor ?? 0
-    expect(roughness).toBeGreaterThan(0.5)
-    expect(roughness).toBeLessThan(0.7)
-  })
+  for (const kind of artifactNames) {
+    it(`${kind} powder coat is a darker, near-dielectric paint rather than a bright metal`, () => {
+      const paint = glbJson(kind).materials?.find(material => material.name === 'Powder coated warm grey')
+      const [red, green, blue] = paint?.pbrMetallicRoughness?.baseColorFactor ?? [1, 1, 1]
+      const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+      expect(luminance).toBeLessThan(0.5)
+      expect(paint?.pbrMetallicRoughness?.metallicFactor).toBeLessThanOrEqual(0.1)
+      const roughness = paint?.pbrMetallicRoughness?.roughnessFactor ?? 0
+      expect(roughness).toBeGreaterThan(0.5)
+      expect(roughness).toBeLessThan(0.7)
+    })
+  }
 
   for (const [kind, height] of [['mounter', 0.66], ['printer', 0.62], ['spi', 0.62], ['aoi', 0.62]] as const) {
     it(`${kind} builds each door leaf to its specified ${height} m height`, () => {
@@ -126,7 +129,7 @@ describe('original Blender machine assets', () => {
     }
   })
 
-  for (const [kind, title] of [['loader', 'LOAD / DEMO'], ['unloader', 'UNLOAD / DEMO']] as const) {
+  for (const kind of ['loader', 'unloader'] as const) {
     it(`${kind} exports a magazine guard door and its own labelled panel`, () => {
       const json = glbJson(kind)
       for (const name of ['Magazine_Door', 'Operator_Panel', 'HMI_Display', 'Emergency_Stop']) {
@@ -135,7 +138,6 @@ describe('original Blender machine assets', () => {
       const glass = glazingIndex(json, `${kind} safety glass`)
       expect(usedMaterials(json, 'Magazine_Door')).toContain(glass)
       expect(Math.abs(nodeHeight(json, 'Magazine_Door') - 0.52)).toBeLessThan(0.001)
-      expect(title).toMatch(/DEMO/)
     })
   }
 
@@ -147,6 +149,51 @@ describe('original Blender machine assets', () => {
       }
       const glass = glazingIndex(json, `${kind} safety glass`)
       expect(usedMaterials(json, 'Vision_Door')).toContain(glass)
+    })
+  }
+
+  const enclosure = { x: 1.17, yMax: 1.82, zMin: -.83, zMax: .95 }
+  const floors: Record<string, number> = { loader: .7, unloader: .7 }
+
+  for (const kind of ['mounter', 'printer', 'spi', 'aoi', 'reflow', 'loader', 'unloader']) {
+    it(`${kind} keeps every moving anchor inside the enclosure at both travel extremes`, () => {
+      const json = glbJson(kind)
+      const floor = floors[kind] ?? 1.09
+      const boundsOf = (nodeName: string) => {
+        const root = json.nodes.findIndex(node => node.name === nodeName)
+        const low = [Infinity, Infinity, Infinity]
+        const high = [-Infinity, -Infinity, -Infinity]
+        const walk = (index: number) => {
+          const node = json.nodes[index]
+          const offset = node.translation ?? [0, 0, 0]
+          if (node.mesh !== undefined) {
+            for (const primitive of json.meshes[node.mesh].primitives) {
+              const accessor = json.accessors[primitive.attributes.POSITION]
+              for (let axis = 0; axis < 3; axis++) {
+                low[axis] = Math.min(low[axis], (accessor.min?.[axis] ?? 0) + offset[axis])
+                high[axis] = Math.max(high[axis], (accessor.max?.[axis] ?? 0) + offset[axis])
+              }
+            }
+          }
+          for (const child of node.children ?? []) walk(child)
+        }
+        walk(root)
+        return { low, high }
+      }
+      for (const pose of [{ cycle: 0, sweep: -1, lift: 0 }, { cycle: 1, sweep: 1, lift: 1 }]) {
+        for (const [anchorName, offset] of Object.entries(anchorOffsets(kind, pose))) {
+          const { low, high } = boundsOf(anchorName)
+          const dx = offset.x ?? 0
+          const dy = offset.y ?? 0
+          const dz = offset.z ?? 0
+          expect(low[0] + dx, `${kind} ${anchorName} crosses a side wall`).toBeGreaterThan(-enclosure.x)
+          expect(high[0] + dx, `${kind} ${anchorName} crosses a side wall`).toBeLessThan(enclosure.x)
+          expect(low[1] + dy, `${kind} ${anchorName} crosses the conveyor`).toBeGreaterThan(floor)
+          expect(high[1] + dy, `${kind} ${anchorName} crosses the roof`).toBeLessThan(enclosure.yMax)
+          expect(low[2] + dz, `${kind} ${anchorName} crosses the back`).toBeGreaterThan(enclosure.zMin)
+          expect(high[2] + dz, `${kind} ${anchorName} crosses the door`).toBeLessThan(enclosure.zMax)
+        }
+      }
     })
   }
 
