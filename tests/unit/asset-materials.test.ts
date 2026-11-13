@@ -10,5 +10,7 @@ describe('loaded asset shadow casting', () => {
   it('keeps blended glazing out of the shadow map', () => {
     expect(castsShadow(['Mounter safety glass'])).toBe(false)
     expect(castsShadow(['Door upright', 'Mounter safety glass'])).toBe(false)
+    expect(castsShadow(['printer safety glass'])).toBe(false)
+    expect(castsShadow(['spi safety glass', 'aoi safety glass'])).toBe(false)
   })
 })
