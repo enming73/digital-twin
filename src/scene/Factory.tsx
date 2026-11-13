@@ -12,6 +12,7 @@ import { anchorOffsets, applyAnchorOffsets, captureAnchors } from './anchors'
 import { easeInOutCubic, lerpPreset, tweenProgress } from './cameraTween'
 import { signalColor, signalIntensity } from './status'
 import Floor from './Floor'
+import SetDressing from './SetDressing'
 import LightRig, { EXPOSURE } from './lighting'
 import { castsShadow } from './assetMaterials'
 import StatusGlow from './StatusGlow'
@@ -218,6 +219,7 @@ export default function Factory({ selected, onSelect, resetKey, scene, selectedB
     <color attach="background" args={['#dde4dd']} /><fog attach="fog" args={['#dde4dd', 45, 110]} />
     <LightRig />
     <Floor />
+    <SetDressing />
     {stations.map(station => <Machine key={station.id} station={station} machine={scene.stations[station.id]?.localMotion ?? null} status={scene.stations[station.id]?.state ?? 'UNKNOWN'} time={scene.simTimeMs} selected={selected?.id === station.id || boardStation === station.id} onSelect={() => onSelect(station)} />)}
     <Boards scene={scene} selectedBoard={selectedBoard} onSelectBoard={onSelectBoard} onTransferCount={onTransferCount} /><CameraRig station={selected} resetKey={resetKey} />
   </Canvas>
