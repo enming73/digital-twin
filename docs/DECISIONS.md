@@ -73,3 +73,10 @@
 - The deferred review minors were cleared: front cladding is derived from each station's cover layout instead of literals, reflow covers meet in a stile with a sealed header and base, cover window frames stand proud of the panel face, and the outboard hinge clears the side wall.
 - The travel envelope is now asserted twice: inside Blender before export, and in Vitest from the exported GLB accessors with the offsets taken from `src/scene/anchors.ts`. The CI test was verified to fail when the envelope is tightened.
 - The browser console/cross-origin guard now visits all seven stations instead of the overview and mounter only.
+
+## v1.8 (2026-11-13)
+- Cross-station board motion is a visual interpolation: `src/scene/transfers.ts` diffs successive scene snapshots, records a hop when a board's station changes, and derives the position from `scene.simTimeMs` only. Pausing freezes the hop; a backwards seek clears in-flight transfers.
+- Hop duration is `max(clamp(|dx| * 110, 350, 900), 2 × poll gap)` and is explicitly illustrative. The stretch guarantees a frame in flight at 2× and 5×, where a 350 ms hop would fit inside one 200–500 ms poll. The simulator still transfers boards instantaneously between buffers; no event payload, KPI or replay semantic changed.
+- A hop starts at the poll that discovers the move, from where the board was last drawn, because the engine's transfer event is not exposed to the scene. x and z are both eased, so entering a queue neither jogs backwards nor snaps sideways. The model can lead the picture by up to one poll; the hop itself always lasts at least two polls.
+- Boards travel on the real conveyor line (`z 0.12`), so most of a hop is hidden inside the machine enclosures. Routing them in front of the cabinets was rejected as physically wrong.
+- Remote W4 boards keep the server-supplied `visual` interpolation and are outside this change; scenes containing them are skipped by the transfer model, and switching source clears any in-flight hops.

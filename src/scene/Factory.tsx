@@ -14,6 +14,7 @@ import { signalColor, signalIntensity } from './status'
 import Floor from './Floor'
 import LightRig, { EXPOSURE } from './lighting'
 import { castsShadow } from './assetMaterials'
+import { boardTarget, boardX, boardZ, updateTransfers, type Transfer } from './transfers'
 
 function Box({ position, size, color, metal = 0.25, name }: { position: [number, number, number]; size: [number, number, number]; color: string; metal?: number; name?: string }) {
   return <mesh name={name} position={position} castShadow receiveShadow><boxGeometry args={size} /><meshStandardMaterial color={color} metalness={metal} roughness={0.57} /></mesh>
@@ -167,9 +168,11 @@ function CameraRig({ station, resetKey }: { station: Station | null; resetKey: n
   return <OrbitControls makeDefault minDistance={3} maxDistance={42} maxPolarAngle={Math.PI / 2.05} />
 }
 
-function Boards({ scene, selectedBoard, onSelectBoard }: { scene: SceneModel; selectedBoard: string | null; onSelectBoard: (id: string) => void }) {
+function Boards({ scene, selectedBoard, onSelectBoard, onTransferCount }: { scene: SceneModel; selectedBoard: string | null; onSelectBoard: (id: string) => void; onTransferCount: (count: number) => void }) {
   const ref = useRef<THREE.InstancedMesh>(null)
   const ids = useRef<string[]>([])
+  const transfers = useRef<Transfer[]>([])
+  const previousScene = useRef<SceneModel | null>(null)
   useFrame(() => {
     if (!ref.current || !scene.boards.some(board => board.visual && board.visual.fromX !== board.visual.toX)) return
     const matrix = new THREE.Matrix4()
@@ -183,33 +186,34 @@ function Boards({ scene, selectedBoard, onSelectBoard }: { scene: SceneModel; se
   })
   useEffect(() => {
     if (!ref.current) return
+    const previous = previousScene.current
+    const crossesSources = Boolean(previous && previous.boards.some(board => board.visual) !== scene.boards.some(board => board.visual))
+    if (crossesSources) transfers.current = []
+    transfers.current = updateTransfers(transfers.current, previous, scene)
+    previousScene.current = scene
+    onTransferCount(transfers.current.length)
     const mesh = ref.current; const matrix = new THREE.Matrix4(); let count = 0
     ids.current = []
     const add = (id: string, x: number, z: number) => { matrix.makeTranslation(x, 1.08, z); mesh.setMatrixAt(count, matrix); mesh.setColorAt(count, new THREE.Color(id === selectedBoard ? '#e3b85a' : '#32715b')); ids.current.push(id); count++ }
     scene.boards.forEach(board => {
-      const station = stations.find(item => item.id === board.stationId)
-      if (!station) return
-      const x = station.position[0]
-      if (board.visual) add(board.id, board.visual.fromX, 0.12)
-      else if (board.position === 'queued') add(board.id, x - 1.2 + board.queueIndex * 0.5, -0.18)
-      else {
-        const machine = scene.stations[board.stationId]?.localMotion
-        const progress = !machine || machine.startedAtMs === null ? 1 : Math.max(0, Math.min(1, ((machine.faultAtMs ?? scene.simTimeMs) - machine.startedAtMs) / machine.processTimeMs))
-        add(board.id, x - 0.55 + progress * 1.1, 0.12)
-      }
+      if (board.visual) { add(board.id, board.visual.fromX, 0.12); return }
+      const target = boardTarget(board, scene)
+      if (!target) return
+      const transfer = transfers.current.find(item => item.boardId === board.id)
+      add(board.id, boardX(transfer, target.x, scene.simTimeMs), boardZ(transfer, target.z, scene.simTimeMs))
     })
     mesh.count = count; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
-  }, [scene, selectedBoard])
+  }, [scene, selectedBoard, onTransferCount])
   return <instancedMesh ref={ref} args={[undefined, undefined, Math.max(1, scene.boards.length)]} name="PCB_Anchors" castShadow frustumCulled={false} onClick={e => { e.stopPropagation(); if (e.instanceId !== undefined && ids.current[e.instanceId]) onSelectBoard(ids.current[e.instanceId]) }}><boxGeometry args={[0.4, 0.045, 0.32]} /><meshStandardMaterial color="#ffffff" metalness={0.2} roughness={0.6} /></instancedMesh>
 }
 
-export default function Factory({ selected, onSelect, resetKey, scene, selectedBoard, onSelectBoard }: { selected: Station | null; onSelect: (station: Station) => void; resetKey: number; scene: SceneModel; selectedBoard: string | null; onSelectBoard: (id: string) => void }) {
+export default function Factory({ selected, onSelect, resetKey, scene, selectedBoard, onSelectBoard, onTransferCount }: { selected: Station | null; onSelect: (station: Station) => void; resetKey: number; scene: SceneModel; selectedBoard: string | null; onSelectBoard: (id: string) => void; onTransferCount: (count: number) => void }) {
   const boardStation = scene.boards.find(board => board.id === selectedBoard)?.stationId
   return <Canvas shadows dpr={[1, 1.5]} gl={{ toneMappingExposure: EXPOSURE }} camera={{ position: overviewCamera.position, fov: 40 }} fallback={<div className="canvas-fallback">3D view unavailable. WebGL is required to view the factory.</div>}>
     <color attach="background" args={['#dde4dd']} /><fog attach="fog" args={['#dde4dd', 45, 110]} />
     <LightRig />
     <Floor />
     {stations.map(station => <Machine key={station.id} station={station} machine={scene.stations[station.id]?.localMotion ?? null} status={scene.stations[station.id]?.state ?? 'UNKNOWN'} time={scene.simTimeMs} selected={selected?.id === station.id || boardStation === station.id} onSelect={() => onSelect(station)} />)}
-    <Boards scene={scene} selectedBoard={selectedBoard} onSelectBoard={onSelectBoard} /><CameraRig station={selected} resetKey={resetKey} />
+    <Boards scene={scene} selectedBoard={selectedBoard} onSelectBoard={onSelectBoard} onTransferCount={onTransferCount} /><CameraRig station={selected} resetKey={resetKey} />
   </Canvas>
 }
