@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { artifactNames, stationAnchors } from '../../src/data/anchors'
 import { anchorOffsets } from '../../src/scene/anchors'
 import { SIGNAL_LENS } from '../../src/scene/statusGlow'
+import { ZONE_X } from '../../src/scene/reflowZones'
 
 type GlbNode = { name?: string; mesh?: number; children?: number[]; translation?: number[] }
 type GlbMaterial = {
@@ -197,6 +198,18 @@ describe('original Blender machine assets', () => {
       }
     })
   }
+
+  it('places the reflow zone slats where the header lamps are drawn', () => {
+    const json = glbJson('reflow')
+    const shutter = json.nodes.find(node => node.name === 'Zone_Shutter')
+    const mesh = shutter?.children?.map(index => json.nodes[index]).find(node => node.mesh !== undefined)
+    const accessor = json.meshes[mesh!.mesh!].primitives[0] && json.accessors[json.meshes[mesh!.mesh!].primitives[0].attributes.POSITION]
+    const offset = mesh?.translation?.[0] ?? 0
+    const half = 0.03
+    expect(offset + (accessor.min?.[0] ?? 0) + half).toBeCloseTo(ZONE_X[0], 5)
+    expect(offset + (accessor.max?.[0] ?? 0) - half).toBeCloseTo(ZONE_X[2], 5)
+    expect((ZONE_X[0] + ZONE_X[2]) / 2).toBeCloseTo(ZONE_X[1], 5)
+  })
 
   for (const name of artifactNames) {
     it(`${name} places its signal lens where the status glow is drawn`, () => {
