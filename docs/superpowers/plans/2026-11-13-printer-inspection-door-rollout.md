@@ -50,32 +50,32 @@ Builder defaults proposed for this rollout:
 
 **Interfaces:** retain `build(kind)` and `shell(mats, kind)`. Extract `operator_panel(mats, cabinet, label, material_prefix)` and `vision_door(mats, cabinet, name, center, width, height, glass, handle_side)` from the sample; the mounter adapter supplies its existing dimensions. Produce `detailed_enclosure(mats, cabinet, kind)` for the three new stations. Material names `<kind> safety glass` use lowercase kind; retain `Mounter safety glass` compatibility.
 
-- [ ] Record baseline screenshots and SHA-256 hashes for all assets; run `npm test` before changing code. Work on a feature branch, using the established inline execution method.
-- [ ] Add printer artifact assertions for `Vision_Door_L`, `Vision_Door_R`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop`. Verify door descendants contain primitives referencing the BLEND glazing material with alpha in (0,1). Keep anchor and budget checks. Run `npx vitest run tests/unit/assets.test.ts` and confirm missing-detail failure.
-- [ ] Add runtime policy tests asserting `printer safety glass` does not cast shadows while opaque materials do. Run `npx vitest run tests/unit/asset-materials.test.ts` and confirm failure before extending the policy.
-- [ ] Extract reusable builders while retaining the mounter's geometry and names; implement printer enclosure/panel. Relocate printer mechanisms behind its panes. Reuse or replace same-named materials deliberately so full-pipeline exports cannot acquire `.001` glazing names that bypass shadow policy.
-- [ ] Add export assertions derived from actual enclosure surfaces for moving-part clearance, separated door frames and non-coplanar vents. Check Squeegee +/-0.48 m and Clamp +0.02 m; do not claim these are full physical collision tests.
-- [ ] Export only printer with the documented Blender command. Run asset/material/anchor tests and `npm test`; verify four protected asset pairs' hashes and inspect printer close-up. Commit scoped files.
+- [x] Record baseline screenshots and SHA-256 hashes for all assets; run `npm test` before changing code. Work on a feature branch, using the established inline execution method.
+- [x] Add printer artifact assertions for `Vision_Door_L`, `Vision_Door_R`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop`. Verify door descendants contain primitives referencing the BLEND glazing material with alpha in (0,1). Keep anchor and budget checks. Run `npx vitest run tests/unit/assets.test.ts` and confirm missing-detail failure.
+- [x] Add runtime policy tests asserting `printer safety glass` does not cast shadows while opaque materials do. Run `npx vitest run tests/unit/asset-materials.test.ts` and confirm failure before extending the policy.
+- [x] Extract reusable builders while retaining the mounter's geometry and names; implement printer enclosure/panel. Relocate printer mechanisms behind its panes. Reuse or replace same-named materials deliberately so full-pipeline exports cannot acquire `.001` glazing names that bypass shadow policy.
+- [x] Add export assertions derived from actual enclosure surfaces for moving-part clearance, separated door frames and non-coplanar vents. Check Squeegee +/-0.48 m and Clamp +0.02 m; do not claim these are full physical collision tests.
+- [x] Export only printer with the documented Blender command. Run asset/material/anchor tests and `npm test`; verify four protected asset pairs' hashes and inspect printer close-up. Commit scoped files.
 
 ### Task 2: SPI and AOI adaptations
 
 **Interfaces:** consumes Task 1 helpers; add `kind` to `camera_parts(mats, kind)` dispatch to select static labels/diagram details, preserving `Camera_Bridge` and `Camera_Head`.
 
-- [ ] Parameterize artifact contracts for SPI/AOI with `Vision_Door`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop` and actual glazing primitive usage. Add their material names to policy tests. Run affected tests and observe expected failures.
-- [ ] Implement one-door inspection variants, shared operator hardware, station-specific HMI diagrams/labels, and hollow housings. Move camera mechanisms behind the pane; shorten the moving bridge if required to clear the side walls at +/-0.57 m. Check the head's -0.05 m vertical travel.
-- [ ] Validate geometry before export: door/frame clearances, pane depth, roof vents, movement extrema. Export SPI and AOI individually; inspect unique names, file sizes, mesh and primitive counts.
-- [ ] Run `npx vitest run tests/unit/assets.test.ts tests/unit/asset-materials.test.ts tests/unit/anchors.test.ts` and `npm test`. Verify protected artifacts remain unchanged; commit scoped files.
+- [x] Parameterize artifact contracts for SPI/AOI with `Vision_Door`, `Operator_Panel`, `HMI_Display`, `Emergency_Stop` and actual glazing primitive usage. Add their material names to policy tests. Run affected tests and observe expected failures.
+- [x] Implement one-door inspection variants, shared operator hardware, station-specific HMI diagrams/labels, and hollow housings. Move camera mechanisms behind the pane; shorten the moving bridge if required to clear the side walls at +/-0.57 m. Check the head's -0.05 m vertical travel.
+- [x] Validate geometry before export: door/frame clearances, pane depth, roof vents, movement extrema. Export SPI and AOI individually; inspect unique names, file sizes, mesh and primitive counts.
+- [x] Run `npx vitest run tests/unit/assets.test.ts tests/unit/asset-materials.test.ts tests/unit/anchors.test.ts` and `npm test`. Verify protected artifacts remain unchanged; commit scoped files.
 
 ### Task 3: Presentation verification and acceptance evidence
 
 **Interfaces:** consumes all three exported models at existing URLs and existing camera/selection controls.
 
-- [ ] Extend model selection and corrupt-model fallback browser checks to printer, SPI and AOI; assert selection and continued simulation after fallback. These test existing behavior, not a claimed RED-to-GREEN bug fix.
-- [ ] Capture before/after close-ups for each station at 1600x900 using existing camera presets. Inspect default and low quality, an oblique view and running/paused poses; record window visibility, hardware readability, pane shadows, overlaps and HMI labeling. Fix observed defects before acceptance.
-- [ ] Compare same-settings rAF callback samples before/after, identifying software rasterizer and measurement limitations. Avoid conclusions about the user's GPU from these numbers.
-- [ ] Run typecheck, lint, complete unit suite, build and complete E2E suite. Preserve exit codes and report actual summaries; do not relax budgets/timeouts to hide regressions.
-- [ ] Write the rollout report and commit screenshots plus exact generation commands, artifact measurements and limitations. Update plan checkboxes only for completed steps.
-- [ ] Obtain one fresh whole-branch review and address important findings. Present the three actual close-ups together for user acceptance; await explicit instruction before merge or PR.
+- [x] Extend model selection and corrupt-model fallback browser checks to printer, SPI and AOI; assert selection and continued simulation after fallback. These test existing behavior, not a claimed RED-to-GREEN bug fix.
+- [x] Capture before/after close-ups for each station at 1600x900 using existing camera presets. Inspect default and low quality, an oblique view and running/paused poses; record window visibility, hardware readability, pane shadows, overlaps and HMI labeling. Fix observed defects before acceptance.
+- [x] Compare same-settings rAF callback samples before/after, identifying software rasterizer and measurement limitations. Avoid conclusions about the user's GPU from these numbers.
+- [x] Run typecheck, lint, complete unit suite, build and complete E2E suite. Preserve exit codes and report actual summaries; do not relax budgets/timeouts to hide regressions.
+- [x] Write the rollout report and commit screenshots plus exact generation commands, artifact measurements and limitations. Update plan checkboxes only for completed steps.
+- [x] Obtain one fresh whole-branch review and address important findings. Present the three actual close-ups together for user acceptance; await explicit instruction before merge or PR.
 
 ## Self-review
 
