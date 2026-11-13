@@ -485,7 +485,7 @@ def loader_parts(mats):
 def build(kind):
     reset()
     mats = (
-        material('Powder coated warm grey', (.68, .72, .69), .27, .48),
+        material('Powder coated warm grey', (.46, .49, .47), .04, .62),
         material('Dark graphite', (.13, .17, .16), .38, .50),
         material('Smoked protective window', (.10, .18, .17), .25, .28),
         material('Satin aluminium', (.48, .55, .51), .75, .37),

@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { artifactNames, stationAnchors } from '../../src/data/anchors'
 
 type GlbNode = { name?: string; mesh?: number; children?: number[] }
-type GlbMaterial = { name?: string; alphaMode?: string; pbrMetallicRoughness?: { baseColorFactor?: number[] } }
+type GlbMaterial = {
+  name?: string
+  alphaMode?: string
+  pbrMetallicRoughness?: { baseColorFactor?: number[]; metallicFactor?: number; roughnessFactor?: number }
+}
 type GlbJson = {
   nodes: GlbNode[]
   meshes: Array<{ primitives: Array<{ material?: number; attributes: { POSITION: number } }> }>
@@ -88,6 +92,17 @@ describe('original Blender machine assets', () => {
     }
     const glass = glazingIndex(json, 'printer safety glass')
     for (const door of ['Vision_Door_L', 'Vision_Door_R']) expect(usedMaterials(json, door)).toContain(glass)
+  })
+
+  it('powder coat is a darker, near-dielectric paint rather than a bright metal', () => {
+    const paint = glbJson('mounter').materials?.find(material => material.name === 'Powder coated warm grey')
+    const [red, green, blue] = paint?.pbrMetallicRoughness?.baseColorFactor ?? [1, 1, 1]
+    const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    expect(luminance).toBeLessThan(0.5)
+    expect(paint?.pbrMetallicRoughness?.metallicFactor).toBeLessThanOrEqual(0.1)
+    const roughness = paint?.pbrMetallicRoughness?.roughnessFactor ?? 0
+    expect(roughness).toBeGreaterThan(0.5)
+    expect(roughness).toBeLessThan(0.7)
   })
 
   for (const [kind, height] of [['mounter', 0.66], ['printer', 0.62], ['spi', 0.62], ['aoi', 0.62]] as const) {
